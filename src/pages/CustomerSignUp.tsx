@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const CustomerSignUp = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -60,22 +63,7 @@ const CustomerSignUp = () => {
     setIsLoading(true);
     
     try {
-      // This is where we would register with Supabase
-      // const { data, error } = await supabase.auth.signUp({ 
-      //   email, 
-      //   password,
-      //   options: {
-      //     data: {
-      //       user_type: 'customer'
-      //     }
-      //   }
-      // });
-      
-      // If error, show error message
-      // if (error) throw error;
-      
-      // For now, we'll simulate successful registration
-      console.log("Signing up customer with:", email, password);
+      await signUp(email, password, "customer");
       
       toast({
         title: "Account created!",
@@ -83,12 +71,9 @@ const CustomerSignUp = () => {
       });
       
       navigate("/signup-success");
-    } catch (err: any) {
-      toast({
-        title: "Error signing up",
-        description: err.message || "Please check your information and try again",
-        variant: "destructive",
-      });
+    } catch (error) {
+      // Error is handled in the signUp function
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -98,22 +83,14 @@ const CustomerSignUp = () => {
     setIsLoading(true);
     
     try {
-      // In a real app with Supabase, this would be:
-      // await supabase.auth.signInWithOAuth({
-      //   provider: 'google',
-      //   options: {
-      //     redirectTo: `${window.location.origin}/auth/callback`,
-      //     queryParams: {
-      //       user_type: 'customer'
-      //     }
-      //   }
-      // });
-      
-      // For now, we'll simulate
-      console.log("Signing up with Google");
-      toast({
-        title: "Google Sign Up",
-        description: "This feature would integrate with Google OAuth in a real app.",
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            user_type: 'customer'
+          }
+        }
       });
     } catch (err: any) {
       toast({
@@ -129,7 +106,7 @@ const CustomerSignUp = () => {
   return (
     <div className="mobile-container app-height flex flex-col p-6 bg-white">
       <button 
-        onClick={() => navigate("/user-type")}
+        onClick={() => navigate("/signup")}
         className="flex items-center text-muted-foreground mb-6"
         disabled={isLoading}
       >

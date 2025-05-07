@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
 import { useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SignUpSuccess = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { userType } = useAuth();
   
   useEffect(() => {
     // Show a welcome toast when the component mounts
@@ -25,7 +27,7 @@ const SignUpSuccess = () => {
         <h1 className="text-3xl font-bold text-skipit-primary">Sign up successful!</h1>
         
         <p className="text-muted-foreground">
-          Your account has been created successfully. You can now sign in to start using Skip It.
+          Your {userType === 'restaurant' ? 'restaurant' : 'customer'} account has been created successfully. You can now sign in to start using Skip It.
         </p>
         
         <Button 

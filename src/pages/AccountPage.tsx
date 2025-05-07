@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,31 +29,71 @@ import {
   Lock
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const AccountPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signOut, userType } = useAuth();
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "(555) 123-4567"
+    name: "",
+    email: "",
+    phone: ""
   });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignOut = () => {
-    // In a real app, we would sign out the user here
-    navigate("/");
+  useEffect(() => {
+    // Initialize profileForm with user data
+    if (user) {
+      setProfileForm({
+        name: user.user_metadata?.name || "",
+        email: user.email || "",
+        phone: user.user_metadata?.phone || ""
+      });
+    }
+  }, [user]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
-  const handleSaveProfile = () => {
-    // In a real app, we would update the user's profile here
-    console.log("Saving profile:", profileForm);
+  const handleSaveProfile = async () => {
+    if (!user) return;
     
-    toast({
-      description: "Profile updated successfully",
-    });
+    setIsLoading(true);
     
-    setProfileDialogOpen(false);
+    try {
+      // Update user metadata
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          name: profileForm.name,
+          phone: profileForm.phone
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        description: "Profile updated successfully",
+      });
+      
+      setProfileDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error updating profile",
+        description: error.message || "Could not update profile",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddPaymentMethod = () => {
@@ -67,11 +107,14 @@ const AccountPage = () => {
       <div className="flex items-center space-x-4 mb-6">
         <Avatar className="h-16 w-16">
           <AvatarImage src="" />
-          <AvatarFallback className="text-lg bg-skipit-primary text-white">JD</AvatarFallback>
+          <AvatarFallback className="text-lg bg-skipit-primary text-white">
+            {profileForm.name ? profileForm.name.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
         <div>
-          <h1 className="text-xl font-bold">{profileForm.name}</h1>
-          <p className="text-muted-foreground">{profileForm.email}</p>
+          <h1 className="text-xl font-bold">{profileForm.name || user?.email?.split('@')[0]}</h1>
+          <p className="text-muted-foreground">{user?.email}</p>
+          <p className="text-xs text-muted-foreground mt-1 capitalize">{userType} Account</p>
         </div>
       </div>
       
@@ -100,6 +143,7 @@ const AccountPage = () => {
                       id="name"
                       value={profileForm.name}
                       onChange={(e) => setProfileForm({...profileForm, name: e.target.value})}
+                      disabled={isLoading}
                     />
                   </div>
                   
@@ -109,8 +153,10 @@ const AccountPage = () => {
                       id="email"
                       type="email"
                       value={profileForm.email}
-                      onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
+                      disabled={true} // Email can't be changed without verification
+                      className="bg-gray-100"
                     />
+                    <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                   </div>
                   
                   <div className="space-y-2">
@@ -120,16 +166,17 @@ const AccountPage = () => {
                       type="tel"
                       value={profileForm.phone}
                       onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
                 
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setProfileDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => setProfileDialogOpen(false)} disabled={isLoading}>
                     Cancel
                   </Button>
-                  <Button onClick={handleSaveProfile}>
-                    Save Changes
+                  <Button onClick={handleSaveProfile} disabled={isLoading}>
+                    {isLoading ? "Saving..." : "Save Changes"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

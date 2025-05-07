@@ -7,35 +7,21 @@ import { ArrowLeft } from "lucide-react";
 const UserTypeSelection = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedType, setSelectedType] = useState<"customer" | "merchant" | null>(null);
+  const [selectedType, setSelectedType] = useState<"customer" | "restaurant" | null>(null);
 
-  const handleUserTypeSelection = async (type: "customer" | "merchant") => {
+  const handleUserTypeSelection = (type: "customer" | "restaurant") => {
     setSelectedType(type);
     setIsLoading(true);
     
-    try {
-      // In a real app with Supabase, we would update the user metadata here
-      // const { error } = await supabase.auth.updateUser({
-      //   data: { user_type: type }
-      // });
-      
-      // if (error) throw error;
-      
-      // For now, just navigate to the appropriate signup page
-      console.log("Selected user type:", type);
-      
-      setTimeout(() => {
-        if (type === "customer") {
-          navigate("/signup/customer");
-        } else {
-          navigate("/signup/restaurant");
-        }
-        setIsLoading(false);
-      }, 500); // Small delay to show the selection state
-    } catch (error) {
-      console.error("Error setting user type:", error);
+    // Navigate to the appropriate signup page
+    setTimeout(() => {
+      if (type === "customer") {
+        navigate("/signup/customer");
+      } else {
+        navigate("/signup/restaurant");
+      }
       setIsLoading(false);
-    }
+    }, 300); // Small delay to show the selection state
   };
 
   return (
@@ -77,11 +63,11 @@ const UserTypeSelection = () => {
           <Button 
             variant="outline" 
             className={`w-full py-8 flex flex-col items-center justify-center border-2 transition-all duration-200 ${
-              selectedType === "merchant" 
+              selectedType === "restaurant" 
                 ? "border-skipit-primary bg-skipit-light" 
                 : "hover:bg-skipit-light"
             }`}
-            onClick={() => handleUserTypeSelection("merchant")}
+            onClick={() => handleUserTypeSelection("restaurant")}
             disabled={isLoading}
           >
             <span className="text-xl font-semibold mb-2">Restaurant / Food Truck</span>

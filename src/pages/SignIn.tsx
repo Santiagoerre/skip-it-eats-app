@@ -1,19 +1,28 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SignIn = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signIn, session } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Redirect to app if already logged in
+  useEffect(() => {
+    if (session) {
+      navigate("/app");
+    }
+  }, [session, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,30 +30,16 @@ const SignIn = () => {
     setError("");
 
     try {
-      // This is where we would connect to Supabase auth
-      // const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      
-      // If error, show toast with error message
-      // if (error) throw error;
-      
-      // For now, we'll simulate successful login
-      console.log("Signing in with:", email, password);
+      await signIn(email, password);
       
       toast({
         title: "Success!",
         description: "You have successfully signed in.",
       });
       
-      // Navigate to the appropriate dashboard based on user type
-      // In a real app, we would check the user metadata to determine this
-      navigate("/app");
+      // useAuth will handle the session state and redirect
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
-      toast({
-        title: "Error signing in",
-        description: err.message || "Please check your credentials and try again",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }

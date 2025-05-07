@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const foodTypes = [
   "American", "Chinese", "Italian", "Mexican", "Japanese", 
@@ -17,6 +19,7 @@ const foodTypes = [
 const RestaurantSignUp = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -91,33 +94,30 @@ const RestaurantSignUp = () => {
     setIsLoading(true);
     
     try {
-      // This is where we would register with Supabase and upload the image
-      // First register the user
-      // const { data, error } = await supabase.auth.signUp({ 
-      //   email, 
-      //   password,
-      //   options: {
-      //     data: {
-      //       user_type: 'restaurant',
-      //       food_type: foodType
-      //     }
-      //   }
-      // });
+      // Register with Supabase with additional metadata
+      await signUp(email, password, "restaurant", { food_type: foodType });
       
-      // If error, show error message
-      // if (error) throw error;
-      
-      // Then, if we have an image file, upload it to Supabase storage
-      // if (imageFile && data?.user) {
-      //   const { error: uploadError } = await supabase.storage
-      //     .from('restaurant-images')
-      //     .upload(`${data.user.id}/profile`, imageFile);
-      //
-      //   if (uploadError) throw uploadError;
-      // }
-      
-      // For now, we'll simulate successful registration
-      console.log("Signing up restaurant with:", email, password, foodType, imageFile);
+      // If we have a session and image file, upload it
+      if (imageFile) {
+        // Get the newly created user
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          const { error: uploadError } = await supabase.storage
+            .from('restaurant-images')
+            .upload(`${session.user.id}/profile`, imageFile);
+          
+          if (uploadError) {
+            console.error("Error uploading image:", uploadError);
+            // Non-blocking error - we'll still proceed with account creation
+            toast({
+              title: "Image upload failed",
+              description: "Your account was created, but we couldn't upload your image. You can add it later.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
       
       toast({
         title: "Restaurant account created!",
@@ -125,12 +125,9 @@ const RestaurantSignUp = () => {
       });
       
       navigate("/signup-success");
-    } catch (err: any) {
-      toast({
-        title: "Error signing up",
-        description: err.message || "Please check your information and try again",
-        variant: "destructive",
-      });
+    } catch (error) {
+      // Error is handled in the signUp function
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +136,7 @@ const RestaurantSignUp = () => {
   return (
     <div className="mobile-container app-height flex flex-col p-6 bg-white">
       <button 
-        onClick={() => navigate("/user-type")}
+        onClick={() => navigate("/signup")}
         className="flex items-center text-muted-foreground mb-6"
         disabled={isLoading}
       >

@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,16 +23,7 @@ const ForgotPassword = () => {
     setError("");
 
     try {
-      // This is where we would request password reset with Supabase
-      // const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      //   redirectTo: `${window.location.origin}/reset-password`,
-      // });
-      
-      // If error, show error message
-      // if (error) throw error;
-      
-      // For now, we'll simulate successful password reset request
-      console.log("Password reset for:", email);
+      await resetPassword(email);
       
       toast({
         title: "Reset email sent",
@@ -40,11 +33,6 @@ const ForgotPassword = () => {
       setIsSubmitted(true);
     } catch (err: any) {
       setError(err.message || "Failed to send reset email");
-      toast({
-        title: "Error",
-        description: err.message || "Failed to send reset email. Please try again.",
-        variant: "destructive"
-      });
     } finally {
       setIsLoading(false);
     }
