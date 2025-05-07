@@ -9,10 +9,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import SplashScreen from "./pages/SplashScreen";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import CustomerSignUp from "./pages/CustomerSignUp";
+import RestaurantSignUp from "./pages/RestaurantSignUp";
+import SignUpSuccess from "./pages/SignUpSuccess";
 import ForgotPassword from "./pages/ForgotPassword";
 import UserTypeSelection from "./pages/UserTypeSelection";
 import MainLayout from "./layouts/MainLayout";
 import MapListView from "./pages/MapListView";
+import RestaurantProfileView from "./pages/RestaurantProfileView";
 import OrdersPage from "./pages/OrdersPage";
 import AccountPage from "./pages/AccountPage";
 import RestaurantDashboard from "./pages/RestaurantDashboard";
@@ -30,9 +34,13 @@ const App = () => (
           <Route path="/" element={<SplashScreen />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/signup/customer" element={<CustomerSignUp />} />
+          <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
+          <Route path="/signup-success" element={<SignUpSuccess />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/user-type" element={<UserTypeSelection />} />
           <Route path="/restaurant-dashboard" element={<RestaurantDashboard />} />
+          <Route path="/restaurant/:id" element={<RestaurantProfileView />} />
           
           {/* Main app routes */}
           <Route path="/app" element={<MainLayout />}>

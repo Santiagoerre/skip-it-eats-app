@@ -1,5 +1,6 @@
 
 import { Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface Restaurant {
@@ -17,8 +18,14 @@ interface RestaurantCardProps {
 }
 
 const RestaurantCard = ({ restaurant }: RestaurantCardProps) => {
+  const navigate = useNavigate();
+  
+  const handleClick = () => {
+    navigate(`/restaurant/${restaurant.id}`);
+  };
+  
   return (
-    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+    <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={handleClick}>
       <CardContent className="p-0">
         <div className="flex h-32">
           <div className="w-1/3 bg-muted">

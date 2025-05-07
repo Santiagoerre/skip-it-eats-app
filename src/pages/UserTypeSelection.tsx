@@ -10,23 +10,23 @@ const UserTypeSelection = () => {
     // In a real app, we would save this preference in the user's profile
     console.log("Selected user type:", type);
     if (type === "customer") {
-      navigate("/app");
+      navigate("/signup/customer");
     } else {
-      navigate("/restaurant-dashboard");
+      navigate("/signup/restaurant");
     }
   };
 
   return (
-    <div className="mobile-container app-height flex flex-col p-6">
+    <div className="mobile-container app-height flex flex-col p-6 bg-white">
       <button 
-        onClick={() => navigate("/signup")}
+        onClick={() => navigate("/")}
         className="flex items-center text-muted-foreground mb-6"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back
       </button>
       
-      <div className="flex-1 flex flex-col justify-center">
+      <div className="flex-1 flex flex-col justify-center items-center">
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold text-skipit-primary">I am a...</h1>
           <p className="text-muted-foreground mt-2">
@@ -34,7 +34,7 @@ const UserTypeSelection = () => {
           </p>
         </div>
         
-        <div className="space-y-6">
+        <div className="space-y-6 w-full">
           <Button 
             variant="outline" 
             className="w-full py-8 flex flex-col items-center justify-center border-2 hover:bg-skipit-light"
