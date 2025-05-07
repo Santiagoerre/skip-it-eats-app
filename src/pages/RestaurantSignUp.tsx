@@ -23,6 +23,7 @@ const RestaurantSignUp = () => {
   const [foodType, setFoodType] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -80,11 +81,42 @@ const RestaurantSignUp = () => {
     }
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (validateForm()) {
-      // In a real app, we would register the restaurant with the backend here
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // This is where we would register with Supabase and upload the image
+      // First register the user
+      // const { data, error } = await supabase.auth.signUp({ 
+      //   email, 
+      //   password,
+      //   options: {
+      //     data: {
+      //       user_type: 'restaurant',
+      //       food_type: foodType
+      //     }
+      //   }
+      // });
+      
+      // If error, show error message
+      // if (error) throw error;
+      
+      // Then, if we have an image file, upload it to Supabase storage
+      // if (imageFile && data?.user) {
+      //   const { error: uploadError } = await supabase.storage
+      //     .from('restaurant-images')
+      //     .upload(`${data.user.id}/profile`, imageFile);
+      //
+      //   if (uploadError) throw uploadError;
+      // }
+      
+      // For now, we'll simulate successful registration
       console.log("Signing up restaurant with:", email, password, foodType, imageFile);
       
       toast({
@@ -93,6 +125,14 @@ const RestaurantSignUp = () => {
       });
       
       navigate("/signup-success");
+    } catch (err: any) {
+      toast({
+        title: "Error signing up",
+        description: err.message || "Please check your information and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -101,6 +141,7 @@ const RestaurantSignUp = () => {
       <button 
         onClick={() => navigate("/user-type")}
         className="flex items-center text-muted-foreground mb-6"
+        disabled={isLoading}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back
@@ -122,6 +163,7 @@ const RestaurantSignUp = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={errors.email ? "border-red-500" : ""}
+              disabled={isLoading}
             />
             {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
           </div>
@@ -135,6 +177,7 @@ const RestaurantSignUp = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={errors.password ? "border-red-500" : ""}
+              disabled={isLoading}
             />
             {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
           </div>
@@ -148,13 +191,18 @@ const RestaurantSignUp = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className={errors.confirmPassword ? "border-red-500" : ""}
+              disabled={isLoading}
             />
             {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword}</p>}
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="foodType">Food Type (Required)</Label>
-            <Select value={foodType} onValueChange={setFoodType}>
+            <Select 
+              value={foodType} 
+              onValueChange={setFoodType}
+              disabled={isLoading}
+            >
               <SelectTrigger className={errors.foodType ? "border-red-500" : ""}>
                 <SelectValue placeholder="Select food type" />
               </SelectTrigger>
@@ -169,7 +217,11 @@ const RestaurantSignUp = () => {
           
           <div className="space-y-2">
             <Label>Background Image (Optional)</Label>
-            <div className="border-2 border-dashed rounded-md p-4 text-center cursor-pointer hover:bg-gray-50" onClick={() => document.getElementById("image-upload")?.click()}>
+            <div 
+              className="border-2 border-dashed rounded-md p-4 text-center cursor-pointer hover:bg-gray-50" 
+              onClick={() => !isLoading && document.getElementById("image-upload")?.click()}
+              style={{ opacity: isLoading ? 0.7 : 1 }}
+            >
               {imagePreview ? (
                 <div className="flex flex-col items-center">
                   <img src={imagePreview} alt="Preview" className="max-h-40 mb-2 rounded-md" />
@@ -186,13 +238,18 @@ const RestaurantSignUp = () => {
                 type="file" 
                 accept="image/*" 
                 className="hidden" 
-                onChange={handleImageChange} 
+                onChange={handleImageChange}
+                disabled={isLoading}
               />
             </div>
           </div>
           
-          <Button type="submit" className="w-full py-6 text-base">
-            Sign Up
+          <Button 
+            type="submit" 
+            className="w-full py-6 text-base"
+            disabled={isLoading}
+          >
+            {isLoading ? "Signing Up..." : "Sign Up"}
           </Button>
           
           <div className="text-center mt-6">
@@ -202,6 +259,7 @@ const RestaurantSignUp = () => {
                 variant="link"
                 className="p-0 h-auto"
                 onClick={() => navigate("/signin")}
+                disabled={isLoading}
               >
                 Sign In
               </Button>

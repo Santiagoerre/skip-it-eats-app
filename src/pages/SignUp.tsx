@@ -5,22 +5,53 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert("Passwords don't match");
+      setError("Passwords don't match");
       return;
     }
-    // In a real app, we would register with the backend here
-    console.log("Signing up with:", email, password);
-    navigate("/user-type");
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // This is where we would register with Supabase
+      // const { data, error } = await supabase.auth.signUp({ email, password });
+      
+      // If error, show error message
+      // if (error) throw error;
+      
+      // For now, we'll simulate successful registration
+      console.log("Signing up with:", email, password);
+      
+      toast({
+        title: "Account created!",
+        description: "Your account has been created successfully.",
+      });
+      
+      navigate("/user-type");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign up");
+      toast({
+        title: "Error signing up",
+        description: err.message || "Please check your information and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -39,6 +70,12 @@ const SignUp = () => {
           <p className="text-muted-foreground mt-2">Sign up to get started</p>
         </div>
         
+        {error && (
+          <div className="bg-red-50 text-red-700 p-4 mb-6 rounded-md">
+            {error}
+          </div>
+        )}
+        
         <form onSubmit={handleSignUp} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -49,6 +86,7 @@ const SignUp = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
           
@@ -61,6 +99,7 @@ const SignUp = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
           
@@ -73,11 +112,16 @@ const SignUp = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
           
-          <Button type="submit" className="w-full py-6 text-base">
-            Sign Up
+          <Button 
+            type="submit" 
+            className="w-full py-6 text-base"
+            disabled={isLoading}
+          >
+            {isLoading ? "Signing Up..." : "Sign Up"}
           </Button>
           
           <div className="text-center mt-6">
@@ -87,6 +131,7 @@ const SignUp = () => {
                 variant="link"
                 className="p-0 h-auto"
                 onClick={() => navigate("/signin")}
+                disabled={isLoading}
               >
                 Sign In
               </Button>

@@ -13,6 +13,7 @@ const CustomerSignUp = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -49,11 +50,31 @@ const CustomerSignUp = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (validateForm()) {
-      // In a real app, we would register the user with the backend here
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // This is where we would register with Supabase
+      // const { data, error } = await supabase.auth.signUp({ 
+      //   email, 
+      //   password,
+      //   options: {
+      //     data: {
+      //       user_type: 'customer'
+      //     }
+      //   }
+      // });
+      
+      // If error, show error message
+      // if (error) throw error;
+      
+      // For now, we'll simulate successful registration
       console.log("Signing up customer with:", email, password);
       
       toast({
@@ -62,16 +83,47 @@ const CustomerSignUp = () => {
       });
       
       navigate("/signup-success");
+    } catch (err: any) {
+      toast({
+        title: "Error signing up",
+        description: err.message || "Please check your information and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleSignUp = () => {
-    // In a real app, this would trigger Google OAuth flow
-    console.log("Signing up with Google");
-    toast({
-      title: "Google Sign Up",
-      description: "This feature would integrate with Google OAuth in a real app.",
-    });
+  const handleGoogleSignUp = async () => {
+    setIsLoading(true);
+    
+    try {
+      // In a real app with Supabase, this would be:
+      // await supabase.auth.signInWithOAuth({
+      //   provider: 'google',
+      //   options: {
+      //     redirectTo: `${window.location.origin}/auth/callback`,
+      //     queryParams: {
+      //       user_type: 'customer'
+      //     }
+      //   }
+      // });
+      
+      // For now, we'll simulate
+      console.log("Signing up with Google");
+      toast({
+        title: "Google Sign Up",
+        description: "This feature would integrate with Google OAuth in a real app.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error with Google Sign Up",
+        description: err.message || "Could not sign up with Google",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -79,6 +131,7 @@ const CustomerSignUp = () => {
       <button 
         onClick={() => navigate("/user-type")}
         className="flex items-center text-muted-foreground mb-6"
+        disabled={isLoading}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back
@@ -100,6 +153,7 @@ const CustomerSignUp = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={errors.email ? "border-red-500" : ""}
+              disabled={isLoading}
             />
             {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
           </div>
@@ -113,6 +167,7 @@ const CustomerSignUp = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={errors.password ? "border-red-500" : ""}
+              disabled={isLoading}
             />
             {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
           </div>
@@ -126,12 +181,17 @@ const CustomerSignUp = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className={errors.confirmPassword ? "border-red-500" : ""}
+              disabled={isLoading}
             />
             {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword}</p>}
           </div>
           
-          <Button type="submit" className="w-full py-6 text-base">
-            Sign Up
+          <Button 
+            type="submit" 
+            className="w-full py-6 text-base"
+            disabled={isLoading}
+          >
+            {isLoading ? "Signing Up..." : "Sign Up"}
           </Button>
           
           <div className="relative flex items-center py-2">
@@ -145,8 +205,9 @@ const CustomerSignUp = () => {
             variant="outline" 
             className="w-full py-6 text-base" 
             onClick={handleGoogleSignUp}
+            disabled={isLoading}
           >
-            Sign Up with Google
+            {isLoading ? "Processing..." : "Sign Up with Google"}
           </Button>
           
           <div className="text-center mt-6">
@@ -156,6 +217,7 @@ const CustomerSignUp = () => {
                 variant="link"
                 className="p-0 h-auto"
                 onClick={() => navigate("/signin")}
+                disabled={isLoading}
               >
                 Sign In
               </Button>
