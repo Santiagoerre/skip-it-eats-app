@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import { ensureUserProfile } from "@/services/authService";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,7 +13,7 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLoading, session, userType } = useAuth();
+  const { isLoading, session, user, userType } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
@@ -33,25 +34,33 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
           return;
         }
         
+        // If user has no type but should have one, try to ensure profile and get type
+        if (session && user && !userType) {
+          console.log("User has no type, trying to ensure profile");
+          // Check user metadata for user_type
+          const metadataUserType = user.user_metadata?.user_type as 'customer' | 'restaurant' | null;
+          
+          if (metadataUserType) {
+            console.log(`Found user type in metadata: ${metadataUserType}, ensuring profile exists`);
+            // This will create a profile if one doesn't exist
+            await ensureUserProfile(user.id, metadataUserType);
+            
+            // Redirect based on user type from metadata
+            if (requiredUserType && metadataUserType !== requiredUserType) {
+              redirectBasedOnUserType(metadataUserType);
+              return;
+            }
+          } else {
+            console.log("No user type found, redirecting to signin for type selection");
+            navigate("/signin");
+            return;
+          }
+        }
+        
         // If requiredUserType is specified and the user has a type, check if it matches
         if (requiredUserType && userType && userType !== requiredUserType) {
           console.log("User type mismatch, redirecting", { userType, requiredUserType });
-          
-          // Redirect to appropriate home page based on the user's actual type
-          if (userType === 'customer') {
-            navigate("/app");
-          } else if (userType === 'restaurant') {
-            navigate("/restaurant-dashboard");
-          } else {
-            navigate("/signin");
-          }
-          return;
-        }
-        
-        // If requiredUserType is specified but the user has no type
-        if (requiredUserType && !userType) {
-          console.log("User has no type, redirecting to signin", { requiredUserType });
-          navigate("/signin");
+          redirectBasedOnUserType(userType);
           return;
         }
       } catch (error) {
@@ -63,7 +72,18 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
     };
 
     verifyAuth();
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType]);
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user]);
+
+  // Helper function to redirect based on user type
+  const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
+    if (type === 'customer') {
+      navigate("/app");
+    } else if (type === 'restaurant') {
+      navigate("/restaurant-dashboard");
+    } else {
+      navigate("/signin");
+    }
+  };
 
   // Show loading indicator while checking authentication
   if (isLoading || isCheckingAuth) {

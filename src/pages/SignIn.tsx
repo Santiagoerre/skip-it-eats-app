@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { ensureUserProfile } from "@/services/authService";
 
 const SignIn = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { signIn, session, userType, isLoading } = useAuth();
+  const { signIn, session, user, userType, isLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,20 +22,43 @@ const SignIn = () => {
 
   // Redirect to appropriate dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && session && userType && !redirectAttempted) {
+    if (!isLoading && session && user && !redirectAttempted) {
       setRedirectAttempted(true);
-      console.log("SignIn - redirecting based on user type:", userType);
+      console.log("SignIn - user logged in, checking user type:", { user, userType });
       
-      if (userType === "restaurant") {
-        navigate("/restaurant-dashboard");
-      } else if (userType === "customer") {
-        navigate("/app");
+      // If user has no type in state but has in metadata, ensure profile exists
+      if (!userType && user.user_metadata?.user_type) {
+        const metadataUserType = user.user_metadata.user_type as 'customer' | 'restaurant';
+        console.log("User type found in metadata:", metadataUserType);
+        
+        // Create profile with the user type from metadata
+        setTimeout(async () => {
+          await ensureUserProfile(user.id, metadataUserType);
+          redirectBasedOnUserType(metadataUserType);
+        }, 0);
+        
+        return;
+      }
+      
+      // If we have user type in state, redirect based on that
+      if (userType) {
+        console.log("SignIn - redirecting based on user type:", userType);
+        redirectBasedOnUserType(userType);
       } else {
         // If user has no type yet, navigate to user type selection
+        console.log("User has no type, redirecting to signup for type selection");
         navigate("/signup");
       }
     }
-  }, [isLoading, session, userType, navigate, redirectAttempted]);
+  }, [isLoading, session, userType, navigate, redirectAttempted, user]);
+
+  const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
+    if (type === "restaurant") {
+      navigate("/restaurant-dashboard");
+    } else if (type === "customer") {
+      navigate("/app");
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

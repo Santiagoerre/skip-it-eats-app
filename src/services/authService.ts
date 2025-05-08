@@ -78,10 +78,12 @@ export const updateUserProfile = async (
 // Ensure profile exists and create if it doesn't
 export const ensureUserProfile = async (userId: string, userType: 'customer' | 'restaurant'): Promise<boolean> => {
   try {
+    console.log(`Ensuring profile exists for user ${userId} with type ${userType}`);
+    
     // Check if profile exists
     const { data, error } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, user_type')
       .eq('id', userId)
       .maybeSingle();
       
@@ -92,6 +94,7 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     
     // If profile doesn't exist, create it
     if (!data) {
+      console.log(`No profile found, creating new profile for user ${userId}`);
       const { error: insertError } = await supabase
         .from('profiles')
         .insert({
@@ -106,30 +109,31 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
         return false;
       }
       
-      console.log("Created new profile for user:", userId);
+      console.log("Successfully created new profile for user:", userId);
       
       // For restaurant users, ensure restaurant_details exists
       if (userType === 'restaurant') {
-        const { data: existingDetails } = await supabase
-          .from('restaurant_details')
-          .select('id')
-          .eq('restaurant_id', userId)
-          .maybeSingle();
+        await ensureRestaurantDetails(userId);
+      }
+    } else {
+      console.log(`Profile already exists for user ${userId}, current type: ${data.user_type}`);
+      
+      // If profile exists but user_type is different, update it
+      if (data.user_type !== userType) {
+        console.log(`Updating user type from ${data.user_type} to ${userType}`);
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ user_type: userType, updated_at: new Date().toISOString() })
+          .eq('id', userId);
           
-        if (!existingDetails) {
-          const { error: detailsError } = await supabase
-            .from('restaurant_details')
-            .insert({
-              restaurant_id: userId,
-              name: 'New Restaurant',
-              price_range: '$',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-            
-          if (detailsError) {
-            console.error('Error creating restaurant details:', detailsError);
-          }
+        if (updateError) {
+          console.error('Error updating user type:', updateError);
+          return false;
+        }
+        
+        // If updated to restaurant, ensure restaurant details exist
+        if (userType === 'restaurant') {
+          await ensureRestaurantDetails(userId);
         }
       }
     }
@@ -137,6 +141,76 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     return true;
   } catch (error) {
     console.error('Error in ensureUserProfile:', error);
+    return false;
+  }
+};
+
+// Helper function to ensure restaurant details exist
+const ensureRestaurantDetails = async (restaurantId: string): Promise<boolean> => {
+  try {
+    console.log(`Checking restaurant details for restaurant ID: ${restaurantId}`);
+    
+    const { data: existingDetails, error: checkError } = await supabase
+      .from('restaurant_details')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error('Error checking restaurant details:', checkError);
+      return false;
+    }
+    
+    if (!existingDetails) {
+      console.log(`No restaurant details found, creating for restaurant ID: ${restaurantId}`);
+      
+      const { error: detailsError } = await supabase
+        .from('restaurant_details')
+        .insert({
+          restaurant_id: restaurantId,
+          name: 'New Restaurant',
+          price_range: '$',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+      if (detailsError) {
+        console.error('Error creating restaurant details:', detailsError);
+        return false;
+      }
+      
+      console.log(`Successfully created restaurant details for ID: ${restaurantId}`);
+      
+      // Also check for restaurant location
+      const { data: existingLocation } = await supabase
+        .from('restaurant_locations')
+        .select('id')
+        .eq('restaurant_id', restaurantId)
+        .maybeSingle();
+        
+      if (!existingLocation) {
+        const { error: locationError } = await supabase
+          .from('restaurant_locations')
+          .insert({
+            restaurant_id: restaurantId,
+            address: 'Address not specified',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+        if (locationError) {
+          console.error('Error creating restaurant location:', locationError);
+        } else {
+          console.log(`Successfully created restaurant location for ID: ${restaurantId}`);
+        }
+      }
+    } else {
+      console.log(`Restaurant details already exist for ID: ${restaurantId}`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in ensureRestaurantDetails:', error);
     return false;
   }
 };
