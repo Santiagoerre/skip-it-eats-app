@@ -9,12 +9,7 @@ import { OrderStatus } from "./orders/types";
 import { OrderProps } from "./orders/OrderCard";
 
 const OrdersManagement = () => {
-  const [orders, setOrders] = useState<OrderProps[]>(
-    mockOrders.map(order => ({
-      ...order,
-      onStatusUpdate: updateOrderStatus
-    }))
-  );
+  const [orders, setOrders] = useState<OrderProps[]>(mockOrders);
   
   const pendingOrders = orders.filter(order => order.status === "pending");
   const confirmedOrders = orders.filter(order => order.status === "confirmed");

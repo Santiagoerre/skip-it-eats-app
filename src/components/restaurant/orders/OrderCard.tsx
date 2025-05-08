@@ -1,5 +1,4 @@
 
-import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -21,10 +20,14 @@ export interface OrderProps {
   status: OrderStatus;
   time: string;
   specialInstructions?: string;
+}
+
+interface OrderCardProps {
+  order: OrderProps;
   onStatusUpdate: (orderId: string, status: OrderStatus) => void;
 }
 
-const OrderCard = ({ order, onStatusUpdate }: { order: OrderProps }) => {
+const OrderCard = ({ order, onStatusUpdate }: OrderCardProps) => {
   return (
     <Card className="mb-4">
       <CardContent className="pt-6">

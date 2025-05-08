@@ -17,7 +17,11 @@ const OrdersTab = ({ orders, emptyMessage, onStatusUpdate }: OrdersTabProps) => 
         <EmptyState message={emptyMessage} />
       ) : (
         orders.map(order => (
-          <OrderCard key={order.id} order={order} onStatusUpdate={onStatusUpdate} />
+          <OrderCard 
+            key={order.id} 
+            order={order} 
+            onStatusUpdate={onStatusUpdate} 
+          />
         ))
       )}
     </>

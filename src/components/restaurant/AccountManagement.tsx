@@ -2,12 +2,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Settings } from "lucide-react";
 import { 
   Restaurant, 
   RestaurantLocation, 
@@ -16,6 +10,9 @@ import {
   updateRestaurantDetails,
   updateRestaurantLocation
 } from "@/services/restaurantService";
+import ProfileForm from "./account/ProfileForm";
+import LocationForm from "./account/LocationForm";
+import AccountActions from "./account/AccountActions";
 
 const AccountManagement = () => {
   const { user, signOut } = useAuth();
@@ -126,99 +123,30 @@ const AccountManagement = () => {
         <h2 className="text-xl font-semibold">Account Management</h2>
       </div>
       
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" /> Restaurant Profile
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Restaurant Name</Label>
-            <Input 
-              id="name" 
-              value={name} 
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your restaurant name"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="cuisine">Cuisine Type</Label>
-            <Input 
-              id="cuisine" 
-              value={cuisine} 
-              onChange={(e) => setCuisine(e.target.value)}
-              placeholder="e.g., Italian, Indian, American"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="priceRange">Price Range</Label>
-            <select
-              id="priceRange"
-              value={priceRange}
-              onChange={(e) => setPriceRange(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="$">$ (Budget)</option>
-              <option value="$$">$$ (Moderate)</option>
-              <option value="$$$">$$$ (Expensive)</option>
-              <option value="$$$$">$$$$ (Very Expensive)</option>
-            </select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea 
-              id="description" 
-              value={description} 
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tell customers about your restaurant"
-              rows={4}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <ProfileForm 
+        restaurant={restaurant}
+        isSaving={isSaving}
+        name={name}
+        cuisine={cuisine}
+        priceRange={priceRange}
+        description={description}
+        onNameChange={setName}
+        onCuisineChange={setCuisine}
+        onPriceRangeChange={setPriceRange}
+        onDescriptionChange={setDescription}
+      />
       
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" /> Location
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input 
-              id="address" 
-              value={address} 
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Full restaurant address"
-            />
-            <p className="text-xs text-muted-foreground">
-              This address will be shown to customers on the map
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <LocationForm 
+        location={location}
+        address={address}
+        onAddressChange={setAddress}
+      />
       
-      <div className="flex space-x-4">
-        <Button 
-          onClick={handleSave} 
-          disabled={isSaving} 
-          className="flex-1"
-        >
-          {isSaving ? "Saving..." : "Save Changes"}
-        </Button>
-        <Button 
-          variant="outline"
-          onClick={() => signOut()}
-          className="flex-1"
-        >
-          Sign Out
-        </Button>
-      </div>
+      <AccountActions 
+        isSaving={isSaving}
+        onSave={handleSave}
+        onSignOut={signOut}
+      />
     </div>
   );
 };
