@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal, MapPin, X } from "lucide-react";
@@ -45,7 +44,7 @@ const MapListView = () => {
     price: "All",
   });
 
-  // Fetch real restaurant data
+  // Fetch restaurant data
   useEffect(() => {
     const loadRestaurants = async () => {
       try {

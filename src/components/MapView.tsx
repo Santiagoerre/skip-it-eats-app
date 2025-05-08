@@ -31,34 +31,44 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        // Join restaurant_details with restaurant_locations
+        // Modified query to properly join the tables
         const { data, error } = await supabase
           .from('restaurant_details')
           .select(`
-            id,
             name,
             cuisine,
             price_range,
-            restaurant_id,
-            restaurant_locations!inner (
-              latitude,
-              longitude
-            )
-          `)
-          .returns<any[]>();
+            restaurant_id
+          `);
 
         if (error) throw error;
 
         if (data) {
-          // Transform data to the format we need
-          const restaurantsWithLocation = data.map(item => ({
-            id: item.restaurant_id,
-            name: item.name,
-            cuisine: item.cuisine || 'Not specified',
-            price_range: item.price_range || '$',
-            latitude: item.restaurant_locations[0]?.latitude,
-            longitude: item.restaurant_locations[0]?.longitude
-          })).filter(r => r.latitude && r.longitude); // Only include restaurants with valid coordinates
+          // Fetch locations separately
+          const locationsPromises = data.map(async (restaurant) => {
+            const { data: locationData, error: locationError } = await supabase
+              .from('restaurant_locations')
+              .select('latitude, longitude')
+              .eq('restaurant_id', restaurant.restaurant_id)
+              .maybeSingle();
+            
+            if (locationError) {
+              console.error('Error fetching location:', locationError);
+              return null;
+            }
+            
+            return {
+              id: restaurant.restaurant_id,
+              name: restaurant.name,
+              cuisine: restaurant.cuisine || 'Not specified',
+              price_range: restaurant.price_range || '$',
+              latitude: locationData?.latitude || null,
+              longitude: locationData?.longitude || null
+            };
+          });
+          
+          const restaurantsWithLocation = (await Promise.all(locationsPromises))
+            .filter(r => r && r.latitude && r.longitude) as Restaurant[];
           
           setRestaurants(restaurantsWithLocation);
         }

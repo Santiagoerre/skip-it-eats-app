@@ -15,8 +15,7 @@ export const mockOrders: OrderProps[] = [
     total: 18.97,
     status: "pending" as OrderStatus,
     time: "Today, 5:30 PM",
-    specialInstructions: "No onions on the burger please",
-    onStatusUpdate: () => {}
+    specialInstructions: "No onions on the burger please"
   },
   {
     id: "2",
@@ -27,8 +26,7 @@ export const mockOrders: OrderProps[] = [
     ],
     total: 19.98,
     status: "confirmed" as OrderStatus,
-    time: "Today, 5:15 PM",
-    onStatusUpdate: () => {}
+    time: "Today, 5:15 PM"
   },
   {
     id: "3",
@@ -39,7 +37,6 @@ export const mockOrders: OrderProps[] = [
     ],
     total: 12.98,
     status: "completed" as OrderStatus,
-    time: "Today, 4:30 PM",
-    onStatusUpdate: () => {}
+    time: "Today, 4:30 PM"
   }
 ];
