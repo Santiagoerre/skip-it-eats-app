@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { OrderStatus } from "@/components/restaurant/orders/types";
+import { Json } from "@/integrations/supabase/types";
 
 export interface OrderItem {
   name: string;
@@ -32,15 +33,15 @@ export const submitOrder = async (
   try {
     const { data, error } = await supabase
       .from('orders')
-      .insert([{
+      .insert({
         customer_id: customerId,
         restaurant_id: restaurantId,
         customer_name: customerName,
-        items,
+        items: items as unknown as Json,
         total,
         status: 'pending',
         special_instructions: specialInstructions
-      }])
+      })
       .select()
       .single();
     
@@ -49,7 +50,10 @@ export const submitOrder = async (
       throw error;
     }
     
-    return data as Order;
+    return {
+      ...data,
+      items: data.items as unknown as OrderItem[]
+    } as Order;
   } catch (error) {
     console.error('Error submitting order:', error);
     throw error;
@@ -70,7 +74,11 @@ export const fetchCustomerOrders = async (customerId: string): Promise<Order[]> 
       throw error;
     }
     
-    return data as Order[];
+    // Transform the items field from Json to OrderItem[]
+    return (data || []).map(order => ({
+      ...order,
+      items: order.items as unknown as OrderItem[]
+    })) as Order[];
   } catch (error) {
     console.error('Error fetching customer orders:', error);
     return [];
@@ -91,7 +99,11 @@ export const fetchRestaurantOrders = async (restaurantId: string): Promise<Order
       throw error;
     }
     
-    return data as Order[];
+    // Transform the items field from Json to OrderItem[]
+    return (data || []).map(order => ({
+      ...order,
+      items: order.items as unknown as OrderItem[]
+    })) as Order[];
   } catch (error) {
     console.error('Error fetching restaurant orders:', error);
     return [];
@@ -113,7 +125,10 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
       throw error;
     }
     
-    return data as Order;
+    return {
+      ...data,
+      items: data.items as unknown as OrderItem[]
+    } as Order;
   } catch (error) {
     console.error('Error updating order status:', error);
     throw error;
