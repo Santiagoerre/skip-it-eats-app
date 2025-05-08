@@ -19,6 +19,7 @@ const RestaurantSignUp = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [foodType, setFoodType] = useState("");
+  const [restaurantName, setRestaurantName] = useState("");
   const [address, setAddress] = useState("");
   const [latitude, setLatitude] = useState(0);
   const [longitude, setLongitude] = useState(0);
@@ -36,6 +37,12 @@ const RestaurantSignUp = () => {
         validator: (value: string) => !!value,
         errorMessage: "Food type is required"
       },
+      restaurantName: {
+        value: restaurantName,
+        required: true,
+        validator: (value: string) => value.length > 2,
+        errorMessage: "Restaurant name is required"
+      },
       address: {
         value: address,
         required: true,
@@ -51,6 +58,7 @@ const RestaurantSignUp = () => {
     try {
       // Register with Supabase with additional metadata
       await signUp(email, password, "restaurant", { 
+        display_name: restaurantName,
         food_type: foodType,
         address: address,
         latitude: latitude,
@@ -114,6 +122,21 @@ const RestaurantSignUp = () => {
         errors={errors}
         isLoading={isLoading}
       />
+      
+      <div className="space-y-2">
+        <label htmlFor="restaurantName" className="block text-sm font-medium">
+          Restaurant Name (Required)
+        </label>
+        <input
+          id="restaurantName"
+          type="text"
+          value={restaurantName}
+          onChange={(e) => setRestaurantName(e.target.value)}
+          className={`w-full p-2 border rounded-md ${errors.restaurantName ? "border-red-500" : ""}`}
+          disabled={isLoading}
+        />
+        {errors.restaurantName && <p className="text-red-500 text-sm">{errors.restaurantName}</p>}
+      </div>
       
       <FoodTypeSelector
         foodType={foodType}

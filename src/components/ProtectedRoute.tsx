@@ -1,8 +1,8 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { checkAuth, getCurrentUserType } from "@/services/authService";
 import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,23 +23,28 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
           return;
         }
 
+        console.log("ProtectedRoute - verifying auth:", { session, userType, requiredUserType });
         setIsCheckingAuth(true);
         
         // If no session, redirect to sign in
         if (!session) {
+          console.log("No session, redirecting to signin");
           navigate("/signin", { state: { from: location.pathname } });
           return;
         }
         
         // If requiredUserType is specified, check if the user has the correct type
         if (requiredUserType && userType !== requiredUserType) {
+          console.log("User type mismatch, redirecting", { userType, requiredUserType });
+          
           // Redirect to appropriate home page
           if (userType === 'customer') {
             navigate("/app");
           } else if (userType === 'restaurant') {
             navigate("/restaurant-dashboard");
           } else {
-            navigate("/signup"); // If user type is not set, redirect to signup
+            // If user type is not set, redirect to signup to complete profile
+            navigate("/signup");
           }
           return;
         }
@@ -54,9 +59,13 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
     verifyAuth();
   }, [isLoading, session, userType, navigate, location.pathname, requiredUserType]);
 
-  // Show nothing while checking authentication
+  // Show loading indicator while checking authentication
   if (isLoading || isCheckingAuth) {
-    return null;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-skipit-primary" />
+      </div>
+    );
   }
 
   // If we've reached this point, the user is authenticated and has the correct type

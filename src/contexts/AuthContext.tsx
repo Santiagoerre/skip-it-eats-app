@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state listener FIRST to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
+        console.log("Auth state changed:", event, currentSession?.user?.id);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
@@ -44,7 +45,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               .single();
             
             if (!error && data) {
+              console.log("User type from profile:", data.user_type);
               setUserType(data.user_type as UserType);
+            } else {
+              console.error("Error fetching user type:", error);
             }
           }, 0);
         } else {
@@ -68,7 +72,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             .single();
           
           if (!error && data) {
+            console.log("Initial user type:", data.user_type);
             setUserType(data.user_type as UserType);
+          } else {
+            console.error("Error fetching initial user type:", error);
           }
         }
       } catch (error) {

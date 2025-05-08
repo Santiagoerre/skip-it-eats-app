@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const SignUpSuccess = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { userType } = useAuth();
+  const { userType, session } = useAuth();
   
   useEffect(() => {
     // Show a welcome toast when the component mounts
@@ -17,7 +17,30 @@ const SignUpSuccess = () => {
       title: "Welcome to Skip It!",
       description: "Your account has been created successfully.",
     });
-  }, [toast]);
+    
+    // If user is already logged in, redirect to the appropriate dashboard
+    if (session) {
+      if (userType === 'restaurant') {
+        navigate("/restaurant-dashboard");
+      } else if (userType === 'customer') {
+        navigate("/app");
+      }
+    }
+  }, [toast, session, userType, navigate]);
+
+  const handleContinue = () => {
+    if (session) {
+      // Navigate based on user type
+      if (userType === 'restaurant') {
+        navigate("/restaurant-dashboard");
+      } else {
+        navigate("/app");
+      }
+    } else {
+      // If not logged in, go to signin
+      navigate("/signin");
+    }
+  };
 
   return (
     <div className="mobile-container app-height flex flex-col items-center justify-center p-6 bg-white">
@@ -32,9 +55,9 @@ const SignUpSuccess = () => {
         
         <Button 
           className="w-full py-6 text-base mt-8"
-          onClick={() => navigate("/signin")}
+          onClick={handleContinue}
         >
-          Go to Login
+          {session ? 'Continue to Dashboard' : 'Go to Login'}
         </Button>
       </div>
     </div>
