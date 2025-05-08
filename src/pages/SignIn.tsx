@@ -12,26 +12,35 @@ const SignIn = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { signIn, session, userType } = useAuth();
+  const { signIn, session, userType, isLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   // Redirect to appropriate dashboard if already logged in
   useEffect(() => {
-    if (session) {
-      if (userType === "restaurant") {
-        navigate("/restaurant-dashboard");
-      } else if (userType === "customer") {
-        navigate("/app");
-      }
+    if (!isLoading && session) {
+      const redirect = () => {
+        console.log("SignIn - redirecting based on user type:", userType);
+        if (userType === "restaurant") {
+          navigate("/restaurant-dashboard");
+        } else if (userType === "customer") {
+          navigate("/app");
+        } else {
+          // If user has no type yet, navigate to user type selection
+          navigate("/signup");
+        }
+      };
+      
+      // Small delay to ensure userType is loaded
+      setTimeout(redirect, 100);
     }
-  }, [session, userType, navigate]);
+  }, [isLoading, session, userType, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError("");
 
     try {
@@ -46,9 +55,20 @@ const SignIn = () => {
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
+
+  // If we're still loading authentication state, show loading
+  if (isLoading) {
+    return (
+      <div className="mobile-container app-height flex items-center justify-center p-6">
+        <div className="text-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mobile-container app-height flex flex-col p-6">
@@ -82,7 +102,7 @@ const SignIn = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              disabled={isLoading}
+              disabled={isSubmitting}
             />
           </div>
           
@@ -93,7 +113,8 @@ const SignIn = () => {
                 variant="link"
                 className="p-0 h-auto text-xs"
                 onClick={() => navigate("/forgot-password")}
-                disabled={isLoading}
+                disabled={isSubmitting}
+                type="button"
               >
                 Forgot Password?
               </Button>
@@ -105,16 +126,16 @@ const SignIn = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              disabled={isLoading}
+              disabled={isSubmitting}
             />
           </div>
           
           <Button 
             type="submit" 
             className="w-full py-6 text-base"
-            disabled={isLoading}
+            disabled={isSubmitting}
           >
-            {isLoading ? "Signing In..." : "Sign In"}
+            {isSubmitting ? "Signing In..." : "Sign In"}
           </Button>
           
           <div className="text-center mt-6">
@@ -124,7 +145,8 @@ const SignIn = () => {
                 variant="link"
                 className="p-0 h-auto"
                 onClick={() => navigate("/signup")}
-                disabled={isLoading}
+                disabled={isSubmitting}
+                type="button"
               >
                 Sign Up
               </Button>

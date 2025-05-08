@@ -21,7 +21,15 @@ export const getCurrentUserType = async (): Promise<'customer' | 'restaurant' | 
     
     console.log("Getting user type for ID:", session.user.id);
     
-    // Get user type from the profile
+    // First try to get user type from the user's metadata
+    const userType = session.user.user_metadata?.user_type as 'customer' | 'restaurant' | null;
+    
+    if (userType) {
+      console.log("Found user type in metadata:", userType);
+      return userType;
+    }
+    
+    // If not found in metadata, try getting it from the profile
     const { data, error } = await supabase
       .from('profiles')
       .select('user_type')
@@ -29,16 +37,36 @@ export const getCurrentUserType = async (): Promise<'customer' | 'restaurant' | 
       .maybeSingle();
     
     if (error) {
-      console.error('Error getting user type:', error);
+      console.error('Error getting user type from profiles:', error);
       return null;
     }
     
     if (!data) {
       console.log("No profile found for user:", session.user.id);
+      
+      // As a fallback, try to create a profile with the user type from metadata
+      if (userType) {
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: session.user.id,
+            user_type: userType,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        } else {
+          console.log("Created new profile with user type:", userType);
+          return userType;
+        }
+      }
+      
       return null;
     }
     
-    console.log("Found user type:", data.user_type);
+    console.log("Found user type in profile:", data.user_type);
     return data.user_type as 'customer' | 'restaurant';
   } catch (error) {
     console.error('Error in getCurrentUserType:', error);
@@ -60,6 +88,47 @@ export const updateUserProfile = async (
     return true;
   } catch (error) {
     console.error('Error updating user profile:', error);
+    return false;
+  }
+};
+
+// Add a function to ensure profile exists
+export const ensureUserProfile = async (userId: string, userType: 'customer' | 'restaurant'): Promise<boolean> => {
+  try {
+    // Check if profile exists
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+      
+    if (error) {
+      console.error('Error checking profile:', error);
+      return false;
+    }
+    
+    // If profile doesn't exist, create it
+    if (!data) {
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          user_type: userType,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+      if (insertError) {
+        console.error('Error creating profile:', insertError);
+        return false;
+      }
+      
+      console.log("Created new profile for user:", userId);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in ensureUserProfile:', error);
     return false;
   }
 };

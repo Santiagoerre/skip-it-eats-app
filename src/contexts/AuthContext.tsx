@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { ensureUserProfile } from "@/services/authService";
 
 type UserType = "customer" | "restaurant" | null;
 
@@ -26,6 +27,55 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  // Helper function to safely get user type
+  const getUserTypeFromSession = async (currentSession: Session | null) => {
+    if (!currentSession?.user) {
+      setUserType(null);
+      return;
+    }
+    
+    try {
+      // First check user metadata
+      const metadataUserType = currentSession.user.user_metadata?.user_type as UserType;
+      
+      if (metadataUserType) {
+        console.log("Found user type in metadata:", metadataUserType);
+        setUserType(metadataUserType);
+        
+        // Ensure profile exists
+        setTimeout(() => {
+          ensureUserProfile(currentSession.user.id, metadataUserType);
+        }, 0);
+        
+        return;
+      }
+      
+      // Then check profiles table
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("id", currentSession.user.id)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching user type:", error);
+        setUserType(null);
+        return;
+      }
+      
+      if (data) {
+        console.log("Found user type in profile:", data.user_type);
+        setUserType(data.user_type as UserType);
+      } else {
+        console.log("No profile found for user:", currentSession.user.id);
+        setUserType(null);
+      }
+    } catch (err) {
+      console.error("Failed to get user type:", err);
+      setUserType(null);
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -34,32 +84,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        // Fetch user type from profile if session exists
-        if (currentSession?.user) {
-          // Using setTimeout to avoid any potential Supabase deadlocks
-          setTimeout(async () => {
-            try {
-              const { data, error } = await supabase
-                .from("profiles")
-                .select("user_type")
-                .eq("id", currentSession.user.id)
-                .single();
-              
-              if (!error && data) {
-                console.log("User type from profile:", data.user_type);
-                setUserType(data.user_type as UserType);
-              } else {
-                console.error("Error fetching user type:", error);
-                setUserType(null);
-              }
-            } catch (err) {
-              console.error("Failed to fetch user type:", err);
-              setUserType(null);
-            }
-          }, 0);
-        } else {
-          setUserType(null);
-        }
+        // Use setTimeout to avoid any potential Supabase deadlocks
+        setTimeout(() => {
+          getUserTypeFromSession(currentSession);
+        }, 0);
       }
     );
 
@@ -70,26 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        if (currentSession?.user) {
-          try {
-            const { data, error } = await supabase
-              .from("profiles")
-              .select("user_type")
-              .eq("id", currentSession.user.id)
-              .single();
-            
-            if (!error && data) {
-              console.log("Initial user type:", data.user_type);
-              setUserType(data.user_type as UserType);
-            } else {
-              console.error("Error fetching initial user type:", error);
-              setUserType(null);
-            }
-          } catch (err) {
-            console.error("Failed to fetch initial user type:", err);
-            setUserType(null);
-          }
-        }
+        await getUserTypeFromSession(currentSession);
       } catch (error) {
         console.error("Error checking auth session:", error);
       } finally {
@@ -134,24 +143,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) throw error;
       
-      // Manually create profile if it wasn't created by the database trigger
+      // Manually create profile if sign-up was successful
       if (data?.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            user_type: userType,
-            display_name: metadata.display_name || null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'id'
-          });
+        const userId = data.user.id;
         
-        if (profileError) {
-          console.error("Error creating profile:", profileError);
-          // Non-blocking error - we'll still proceed with account creation
-        }
+        // Use setTimeout to avoid potential deadlocks
+        setTimeout(async () => {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              user_type: userType,
+              display_name: metadata.display_name || null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+          
+          if (profileError) {
+            console.error("Error creating profile:", profileError);
+            // Non-blocking error - we'll still proceed with account creation
+          }
+        }, 0);
       }
     } catch (error: any) {
       toast({

@@ -33,8 +33,8 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
           return;
         }
         
-        // If requiredUserType is specified, check if the user has the correct type
-        if (requiredUserType && userType !== requiredUserType) {
+        // If requiredUserType is specified and the user has a type, check if it matches
+        if (requiredUserType && userType && userType !== requiredUserType) {
           console.log("User type mismatch, redirecting", { userType, requiredUserType });
           
           // Redirect to appropriate home page based on the user's actual type
@@ -43,9 +43,15 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
           } else if (userType === 'restaurant') {
             navigate("/restaurant-dashboard");
           } else {
-            // Only redirect to sign up if user has no type at all
             navigate("/signin");
           }
+          return;
+        }
+        
+        // If requiredUserType is specified but the user has no type
+        if (requiredUserType && !userType) {
+          console.log("User has no type, redirecting to signin", { requiredUserType });
+          navigate("/signin");
           return;
         }
       } catch (error) {
