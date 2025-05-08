@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      menu_items: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price: number
+          restaurant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price: number
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price?: number
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -36,6 +72,72 @@ export type Database = {
           id?: string
           updated_at?: string
           user_type?: string
+        }
+        Relationships: []
+      }
+      restaurant_details: {
+        Row: {
+          created_at: string
+          cuisine: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price_range: string | null
+          restaurant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cuisine?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price_range?: string | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cuisine?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price_range?: string | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      restaurant_locations: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          restaurant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          restaurant_id?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

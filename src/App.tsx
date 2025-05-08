@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Pages
 import SplashScreen from "./pages/SplashScreen";
@@ -32,6 +33,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public routes */}
             <Route path="/" element={<SplashScreen />} />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<UserTypeSelection />} />
@@ -39,15 +41,32 @@ const App = () => (
             <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
             <Route path="/signup-success" element={<SignUpSuccess />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/restaurant-dashboard" element={<RestaurantDashboard />} />
-            <Route path="/restaurant/:id" element={<RestaurantProfileView />} />
+            <Route path="/auth/callback" element={<SignUpSuccess />} />
             
-            {/* Main app routes */}
-            <Route path="/app" element={<MainLayout />}>
+            {/* Restaurant routes */}
+            <Route path="/restaurant-dashboard" element={
+              <ProtectedRoute requiredUserType="restaurant">
+                <RestaurantDashboard />
+              </ProtectedRoute>
+            } />
+            
+            {/* Customer routes */}
+            <Route path="/app" element={
+              <ProtectedRoute requiredUserType="customer">
+                <MainLayout />
+              </ProtectedRoute>
+            }>
               <Route index element={<MapListView />} />
               <Route path="orders" element={<OrdersPage />} />
               <Route path="account" element={<AccountPage />} />
             </Route>
+            
+            {/* Shared routes */}
+            <Route path="/restaurant/:id" element={
+              <ProtectedRoute>
+                <RestaurantProfileView />
+              </ProtectedRoute>
+            } />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,11 +1,13 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MapPin, ClipboardList, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { userType } = useAuth();
   const [activeTab, setActiveTab] = useState(getActiveTab(location.pathname));
 
   function getActiveTab(path: string) {
@@ -14,6 +16,13 @@ const MainLayout = () => {
     if (path === "/app/account") return "account";
     return "map";
   }
+
+  useEffect(() => {
+    // If user is a restaurant, redirect to restaurant dashboard
+    if (userType === "restaurant") {
+      navigate("/restaurant-dashboard");
+    }
+  }, [userType, navigate]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);

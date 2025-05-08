@@ -1,6 +1,7 @@
 
-import { useState } from "react";
-import { Search, SlidersHorizontal, MapPin, ListFilter, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Search, SlidersHorizontal, MapPin, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -17,61 +18,100 @@ import {
 } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
 import RestaurantCard from "@/components/RestaurantCard";
-
-// Mock data for restaurants
-const restaurants = [
-  {
-    id: 1,
-    name: "Taco Truck Deluxe",
-    cuisine: "Mexican",
-    rating: 4.8,
-    price: "$$",
-    distance: "0.2 mi",
-    imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png",
-  },
-  {
-    id: 2,
-    name: "Burger Express",
-    cuisine: "American",
-    rating: 4.5,
-    price: "$$",
-    distance: "0.5 mi",
-    imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png",
-  },
-  {
-    id: 3,
-    name: "Sushi Go",
-    cuisine: "Japanese",
-    rating: 4.7,
-    price: "$$$",
-    distance: "0.8 mi",
-    imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png",
-  },
-  {
-    id: 4,
-    name: "Pizza Palace",
-    cuisine: "Italian",
-    rating: 4.3,
-    price: "$$",
-    distance: "1.2 mi",
-    imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png",
-  },
-];
-
-// Filter options
-const cuisineTypes = ["All", "American", "Mexican", "Japanese", "Italian", "Chinese", "Thai", "Indian"];
-const priceRanges = ["All", "$", "$$", "$$$", "$$$$"];
+import MapView from "@/components/MapView";
+import { 
+  fetchRestaurants, 
+  Restaurant, 
+  calculateDistance, 
+  formatDistance, 
+  fetchRestaurantLocation 
+} from "@/services/restaurantService";
 
 const MapListView = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [view, setView] = useState<"list" | "map">("list");
   const [searchQuery, setSearchQuery] = useState("");
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [filters, setFilters] = useState({
     cuisine: "All",
-    maxDistance: 5, // miles
+    maxDistance: 10, // miles
     minRating: 0,
     price: "All",
   });
+
+  // Fetch real restaurant data
+  useEffect(() => {
+    const loadRestaurants = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchRestaurants();
+
+        // Get user location if available
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const userLat = position.coords.latitude;
+              const userLon = position.coords.longitude;
+              setUserLocation({ latitude: userLat, longitude: userLon });
+              
+              // Add distance to each restaurant
+              const restaurantsWithDistance = await Promise.all(
+                data.map(async (restaurant) => {
+                  const location = await fetchRestaurantLocation(restaurant.id);
+                  if (location && location.latitude && location.longitude) {
+                    const distance = calculateDistance(
+                      userLat, userLon,
+                      location.latitude, location.longitude
+                    );
+                    return {
+                      ...restaurant,
+                      distance: formatDistance(distance),
+                      distanceValue: distance * 0.621371 // km to miles
+                    };
+                  }
+                  return {
+                    ...restaurant,
+                    distance: 'Unknown',
+                    distanceValue: Infinity
+                  };
+                })
+              );
+              
+              // Sort by distance
+              restaurantsWithDistance.sort((a, b) => {
+                return (a.distanceValue || Infinity) - (b.distanceValue || Infinity);
+              });
+              
+              setRestaurants(restaurantsWithDistance);
+            },
+            (error) => {
+              console.error('Error getting user location:', error);
+              setRestaurants(data);
+            }
+          );
+        } else {
+          setRestaurants(data);
+        }
+      } catch (error) {
+        console.error('Error loading restaurants:', error);
+        toast({
+          title: "Error loading restaurants",
+          description: "Could not load restaurant data. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadRestaurants();
+  }, [toast]);
 
   // Filter restaurants based on search query and filters
   const filteredRestaurants = restaurants.filter((restaurant) => {
@@ -80,11 +120,15 @@ const MapListView = () => {
     
     const matchesCuisine = filters.cuisine === "All" || restaurant.cuisine === filters.cuisine;
     
-    const matchesDistance = parseFloat(restaurant.distance) <= filters.maxDistance;
+    const matchesDistance = !restaurant.distanceValue || restaurant.distanceValue <= filters.maxDistance;
     
     const matchesRating = restaurant.rating >= filters.minRating;
     
-    const matchesPrice = filters.price === "All" || restaurant.price.length === filters.price.length;
+    const matchesPrice = filters.price === "All" || 
+                         (filters.price === "$" && restaurant.price_range === "$") ||
+                         (filters.price === "$$" && restaurant.price_range === "$$") ||
+                         (filters.price === "$$$" && restaurant.price_range === "$$$") ||
+                         (filters.price === "$$$$" && restaurant.price_range === "$$$$");
     
     return matchesSearch && matchesCuisine && matchesDistance && matchesRating && matchesPrice;
   });
@@ -92,10 +136,18 @@ const MapListView = () => {
   const resetFilters = () => {
     setFilters({
       cuisine: "All",
-      maxDistance: 5,
+      maxDistance: 10,
       minRating: 0,
       price: "All",
     });
+  };
+
+  // Get unique cuisine types from the actual data
+  const availableCuisines = ["All", ...Array.from(new Set(restaurants.map(r => r.cuisine)))];
+  const priceRanges = ["All", "$", "$$", "$$$", "$$$$"];
+
+  const handleRestaurantSelect = (restaurantId: string) => {
+    navigate(`/restaurant/${restaurantId}`);
   };
 
   return (
@@ -143,7 +195,7 @@ const MapListView = () => {
                     onValueChange={(value) => setFilters({...filters, cuisine: value})}
                     className="flex flex-wrap gap-2"
                   >
-                    {cuisineTypes.map((cuisine) => (
+                    {availableCuisines.map((cuisine) => (
                       <div key={cuisine} className="flex items-center space-x-2">
                         <RadioGroupItem value={cuisine} id={`cuisine-${cuisine}`} />
                         <Label htmlFor={`cuisine-${cuisine}`}>{cuisine}</Label>
@@ -160,7 +212,7 @@ const MapListView = () => {
                   <Slider
                     value={[filters.maxDistance]}
                     min={0.5}
-                    max={10}
+                    max={20}
                     step={0.5}
                     onValueChange={(value) => setFilters({...filters, maxDistance: value[0]})}
                   />
@@ -229,7 +281,13 @@ const MapListView = () => {
       
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {view === "list" ? (
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-md" />
+            ))}
+          </div>
+        ) : view === "list" ? (
           filteredRestaurants.length > 0 ? (
             <div className="space-y-4">
               {filteredRestaurants.map((restaurant) => (
@@ -257,17 +315,8 @@ const MapListView = () => {
             </div>
           )
         ) : (
-          <div className="h-full flex items-center justify-center bg-skipit-light rounded-lg text-center p-6">
-            <div className="flex flex-col items-center">
-              <MapPin className="h-12 w-12 text-skipit-primary mb-4" />
-              <h3 className="text-lg font-medium mb-2">Map View</h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                This would display a map with restaurant locations in a real app.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                (Map integration would be added in the next iteration)
-              </p>
-            </div>
+          <div className="h-full">
+            <MapView onRestaurantSelect={handleRestaurantSelect} />
           </div>
         )}
       </div>
