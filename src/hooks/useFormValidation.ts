@@ -6,6 +6,7 @@ interface ValidationErrors {
   password?: string;
   confirmPassword?: string;
   foodType?: string;
+  address?: string;
   [key: string]: string | undefined;
 }
 

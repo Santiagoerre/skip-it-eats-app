@@ -8,6 +8,7 @@ import SignUpForm from "@/components/auth/SignUpForm";
 import EmailPasswordFields from "@/components/auth/EmailPasswordFields";
 import FoodTypeSelector from "@/components/auth/FoodTypeSelector";
 import ImageUploader from "@/components/auth/ImageUploader";
+import LocationSelector from "@/components/auth/LocationSelector";
 import { useFormValidation } from "@/hooks/useFormValidation";
 
 const RestaurantSignUp = () => {
@@ -18,6 +19,9 @@ const RestaurantSignUp = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [foodType, setFoodType] = useState("");
+  const [address, setAddress] = useState("");
+  const [latitude, setLatitude] = useState(0);
+  const [longitude, setLongitude] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { errors, validateEmailAndPassword } = useFormValidation();
@@ -31,6 +35,12 @@ const RestaurantSignUp = () => {
         required: true,
         validator: (value: string) => !!value,
         errorMessage: "Food type is required"
+      },
+      address: {
+        value: address,
+        required: true,
+        validator: (value: string) => value.length > 5,
+        errorMessage: "Please enter a valid address"
       }
     })) {
       return;
@@ -40,7 +50,12 @@ const RestaurantSignUp = () => {
     
     try {
       // Register with Supabase with additional metadata
-      await signUp(email, password, "restaurant", { food_type: foodType });
+      await signUp(email, password, "restaurant", { 
+        food_type: foodType,
+        address: address,
+        latitude: latitude,
+        longitude: longitude
+      });
       
       // If we have a session and image file, upload it
       if (imageFile) {
@@ -105,6 +120,17 @@ const RestaurantSignUp = () => {
         setFoodType={setFoodType}
         error={errors.foodType}
         isLoading={isLoading}
+      />
+      
+      <LocationSelector
+        address={address}
+        setAddress={setAddress}
+        error={errors.address}
+        isLoading={isLoading}
+        latitude={latitude}
+        setLatitude={setLatitude}
+        longitude={longitude}
+        setLongitude={setLongitude}
       />
       
       <ImageUploader
