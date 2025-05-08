@@ -10,6 +10,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 // Pages
 import SplashScreen from "./pages/SplashScreen";
 import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
 import UserTypeSelection from "./pages/UserTypeSelection";
 import CustomerSignUp from "./pages/CustomerSignUp";
 import RestaurantSignUp from "./pages/RestaurantSignUp";

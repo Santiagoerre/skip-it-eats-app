@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,19 +10,24 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const SignIn = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const { signIn, session } = useAuth();
+  const { signIn, session, userType } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Redirect to app if already logged in
+  // Redirect to appropriate dashboard if already logged in
   useEffect(() => {
     if (session) {
-      navigate("/app");
+      if (userType === "restaurant") {
+        navigate("/restaurant-dashboard");
+      } else if (userType === "customer") {
+        navigate("/app");
+      }
     }
-  }, [session, navigate]);
+  }, [session, userType, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +42,7 @@ const SignIn = () => {
         description: "You have successfully signed in.",
       });
       
-      // useAuth will handle the session state and redirect
+      // Let the effect handle the redirection based on userType
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {

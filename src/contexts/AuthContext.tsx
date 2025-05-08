@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,7 +34,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        // Fetch user type from metadata if session exists
+        // Fetch user type from profile if session exists
         if (currentSession?.user) {
           // Using setTimeout to avoid any potential Supabase deadlocks
           setTimeout(async () => {
@@ -49,9 +50,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 setUserType(data.user_type as UserType);
               } else {
                 console.error("Error fetching user type:", error);
+                setUserType(null);
               }
             } catch (err) {
               console.error("Failed to fetch user type:", err);
+              setUserType(null);
             }
           }, 0);
         } else {
@@ -80,9 +83,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               setUserType(data.user_type as UserType);
             } else {
               console.error("Error fetching initial user type:", error);
+              setUserType(null);
             }
           } catch (err) {
             console.error("Failed to fetch initial user type:", err);
+            setUserType(null);
           }
         }
       } catch (error) {
@@ -115,7 +120,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, userType: UserType, metadata: any = {}) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      // Create the user with metadata including user_type
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -127,6 +133,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       
       if (error) throw error;
+      
+      // Manually create profile if it wasn't created by the database trigger
+      if (data?.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            user_type: userType,
+            display_name: metadata.display_name || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'id'
+          });
+        
+        if (profileError) {
+          console.error("Error creating profile:", profileError);
+          // Non-blocking error - we'll still proceed with account creation
+        }
+      }
     } catch (error: any) {
       toast({
         title: "Error signing up",

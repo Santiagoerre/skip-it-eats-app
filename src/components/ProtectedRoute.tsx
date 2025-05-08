@@ -37,14 +37,14 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         if (requiredUserType && userType !== requiredUserType) {
           console.log("User type mismatch, redirecting", { userType, requiredUserType });
           
-          // Redirect to appropriate home page
+          // Redirect to appropriate home page based on the user's actual type
           if (userType === 'customer') {
             navigate("/app");
           } else if (userType === 'restaurant') {
             navigate("/restaurant-dashboard");
           } else {
-            // If user type is not set, redirect to signup to complete profile
-            navigate("/signup");
+            // Only redirect to sign up if user has no type at all
+            navigate("/signin");
           }
           return;
         }

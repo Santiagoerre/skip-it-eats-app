@@ -12,33 +12,38 @@ export const getCurrentUserId = async (): Promise<string | null> => {
 };
 
 export const getCurrentUserType = async (): Promise<'customer' | 'restaurant' | null> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return null;
+    }
+    
+    console.log("Getting user type for ID:", session.user.id);
+    
+    // Get user type from the profile
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('user_type')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Error getting user type:', error);
+      return null;
+    }
+    
+    if (!data) {
+      console.log("No profile found for user:", session.user.id);
+      return null;
+    }
+    
+    console.log("Found user type:", data.user_type);
+    return data.user_type as 'customer' | 'restaurant';
+  } catch (error) {
+    console.error('Error in getCurrentUserType:', error);
     return null;
   }
-  
-  console.log("Getting user type for ID:", session.user.id);
-  
-  // Get user type from the profile
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', session.user.id)
-    .maybeSingle();
-  
-  if (error) {
-    console.error('Error getting user type:', error);
-    return null;
-  }
-  
-  if (!data) {
-    console.log("No profile found for user:", session.user.id);
-    return null;
-  }
-  
-  console.log("Found user type:", data.user_type);
-  return data.user_type as 'customer' | 'restaurant';
 };
 
 export const updateUserProfile = async (
