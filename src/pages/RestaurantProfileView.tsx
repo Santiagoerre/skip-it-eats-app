@@ -1,93 +1,89 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Star, Minus, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-
-// Mock data for a restaurant
-const restaurantData = {
-  id: 1,
-  name: "Taco Truck Deluxe",
-  cuisine: "Mexican",
-  rating: 4.8,
-  price: "$$",
-  distance: "0.2 mi",
-  description: "Authentic Mexican street food made with fresh ingredients. Known for our homemade salsas and hand-pressed tortillas.",
-  imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png",
-  menu: [
-    {
-      id: 1,
-      category: "Popular Items",
-      items: [
-        { id: 101, name: "Chicken Burrito", description: "Flour tortilla filled with grilled chicken, rice, beans, and cheese", price: 8.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 102, name: "Carne Asada Tacos", description: "Three corn tortillas with marinated steak, onion, and cilantro", price: 9.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 103, name: "Chips & Guacamole", description: "Fresh homemade guacamole with crispy tortilla chips", price: 5.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-      ]
-    },
-    {
-      id: 2,
-      category: "Burritos",
-      items: [
-        { id: 201, name: "Chicken Burrito", description: "Flour tortilla filled with grilled chicken, rice, beans, and cheese", price: 8.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 202, name: "Beef Burrito", description: "Flour tortilla filled with seasoned ground beef, rice, beans, and cheese", price: 9.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 203, name: "Veggie Burrito", description: "Flour tortilla filled with grilled vegetables, rice, beans, and cheese", price: 7.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-      ]
-    },
-    {
-      id: 3,
-      category: "Tacos",
-      items: [
-        { id: 301, name: "Carne Asada Tacos", description: "Three corn tortillas with marinated steak, onion, and cilantro", price: 9.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 302, name: "Chicken Tacos", description: "Three corn tortillas with grilled chicken, lettuce, and cheese", price: 8.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 303, name: "Fish Tacos", description: "Three corn tortillas with crispy fish, cabbage slaw, and lime crema", price: 10.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-      ]
-    },
-    {
-      id: 4,
-      category: "Sides",
-      items: [
-        { id: 401, name: "Chips & Salsa", description: "Crispy tortilla chips with homemade salsa", price: 3.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 402, name: "Chips & Guacamole", description: "Fresh homemade guacamole with crispy tortilla chips", price: 5.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 403, name: "Mexican Rice", description: "Fluffy rice with tomatoes, onions, and spices", price: 2.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-      ]
-    },
-    {
-      id: 5,
-      category: "Drinks",
-      items: [
-        { id: 501, name: "Mexican Soda", description: "Imported Mexican soda in various flavors", price: 2.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 502, name: "Horchata", description: "Sweet rice milk drink with cinnamon", price: 3.49, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-        { id: 503, name: "Agua Fresca", description: "Fresh fruit water in various flavors", price: 2.99, imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" },
-      ]
-    }
-  ]
-};
+import { fetchRestaurantById, fetchMenuItems } from "@/services/restaurantService";
+import { submitOrder } from "@/services/orderService";
+import { useAuth } from "@/contexts/AuthContext";
+import { Restaurant } from "@/services/restaurantService";
 
 interface CartItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
   quantity: number;
+}
+
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+  image_url: string | null;
 }
 
 const RestaurantProfileView = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const { user } = useAuth();
   
-  const [selectedCategory, setSelectedCategory] = useState("Popular Items");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  
-  // Find current restaurant (in a real app, would fetch from API)
-  const restaurant = restaurantData; // Mock for now
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuCategories, setMenuCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   
   // Calculate cart total
   const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+
+  // Fetch restaurant data and menu
+  useEffect(() => {
+    const loadRestaurantData = async () => {
+      if (!id) return;
+      
+      setIsLoading(true);
+      try {
+        // Fetch restaurant details
+        const restaurantData = await fetchRestaurantById(id);
+        if (restaurantData) {
+          setRestaurant(restaurantData);
+        }
+        
+        // Fetch menu items
+        const items = await fetchMenuItems(id);
+        setMenuItems(items);
+        
+        // Extract unique categories
+        const categories = Array.from(new Set(items.map(item => item.category || 'Uncategorized')));
+        setMenuCategories(categories);
+        
+        // Set initial selected category
+        if (categories.length > 0) {
+          setSelectedCategory(categories[0]);
+        }
+      } catch (error) {
+        console.error("Error loading restaurant data:", error);
+        toast({
+          title: "Error",
+          description: "Could not load restaurant information",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadRestaurantData();
+  }, [id, toast]);
   
-  const addToCart = (item: { id: number; name: string; price: number }) => {
+  const addToCart = (item: { id: string; name: string; price: number }) => {
     setCart(prevCart => {
       const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
       
@@ -110,7 +106,7 @@ const RestaurantProfileView = () => {
     });
   };
   
-  const updateQuantity = (itemId: number, change: number) => {
+  const updateQuantity = (itemId: string, change: number) => {
     setCart(prevCart => {
       return prevCart.map(item => {
         if (item.id === itemId) {
@@ -122,7 +118,17 @@ const RestaurantProfileView = () => {
     });
   };
   
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to place an order",
+        variant: "destructive",
+      });
+      navigate("/signin");
+      return;
+    }
+    
     if (cart.length === 0) {
       toast({
         title: "Empty Cart",
@@ -132,17 +138,52 @@ const RestaurantProfileView = () => {
       return;
     }
     
-    // In a real app, we would send the order to the backend here
-    console.log("Placing order:", cart);
+    if (!restaurant || !id) {
+      toast({
+        title: "Error",
+        description: "Restaurant information is missing",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    toast({
-      title: "Order Placed!",
-      description: "Your order has been placed successfully",
-    });
+    setIsPlacingOrder(true);
     
-    // Clear cart and navigate to orders page
-    setCart([]);
-    navigate("/app/orders");
+    try {
+      // Format cart items for database
+      const items = cart.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price
+      }));
+      
+      // Submit order to backend
+      await submitOrder(
+        user.id,
+        id,
+        user.email || "Customer",
+        items,
+        cartTotal
+      );
+      
+      toast({
+        title: "Order Placed!",
+        description: "Your order has been placed successfully",
+      });
+      
+      // Clear cart and navigate to orders page
+      setCart([]);
+      navigate("/app/orders");
+    } catch (error) {
+      console.error("Error placing order:", error);
+      toast({
+        title: "Order Failed",
+        description: "Could not place your order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   return (
@@ -151,8 +192,8 @@ const RestaurantProfileView = () => {
       <div className="relative h-40">
         <div className="absolute inset-0">
           <img 
-            src={restaurant.imageUrl} 
-            alt={restaurant.name}
+            src={restaurant?.image_url || '/placeholder.svg'} 
+            alt={restaurant?.name || 'Restaurant'}
             className="w-full h-full object-cover" 
           />
           {/* Dark overlay */}
@@ -169,16 +210,16 @@ const RestaurantProfileView = () => {
           </button>
           
           <div className="mt-auto text-white">
-            <h1 className="text-2xl font-bold">{restaurant.name}</h1>
+            <h1 className="text-2xl font-bold">{restaurant?.name}</h1>
             <div className="flex items-center mt-1 space-x-2">
-              <span>{restaurant.cuisine}</span>
+              <span>{restaurant?.cuisine}</span>
               <span className="text-xs">•</span>
               <div className="flex items-center">
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                <span>{restaurant.rating}</span>
+                <span>{restaurant?.rating || 'New'}</span>
               </div>
               <span className="text-xs">•</span>
-              <span>{restaurant.price}</span>
+              <span>{restaurant?.price_range}</span>
             </div>
           </div>
         </div>
@@ -187,17 +228,17 @@ const RestaurantProfileView = () => {
       {/* Menu Categories */}
       <div className="bg-white border-b overflow-x-auto">
         <div className="flex px-4 py-2 space-x-4">
-          {restaurant.menu.map(category => (
+          {menuCategories.map(category => (
             <button
-              key={category.id}
+              key={category}
               className={`whitespace-nowrap px-3 py-1 rounded-full text-sm ${
-                selectedCategory === category.category 
+                selectedCategory === category 
                   ? "bg-skipit-primary text-white" 
                   : "bg-gray-100 text-gray-700"
               }`}
-              onClick={() => setSelectedCategory(category.category)}
+              onClick={() => setSelectedCategory(category)}
             >
-              {category.category}
+              {category}
             </button>
           ))}
         </div>
@@ -205,75 +246,79 @@ const RestaurantProfileView = () => {
       
       {/* Menu Items */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
-        <div className="space-y-6">
-          {restaurant.menu
-            .filter(category => category.category === selectedCategory)
-            .map(category => (
-              <div key={category.id}>
-                <h2 className="text-lg font-semibold mb-4">{category.category}</h2>
+        {isLoading ? (
+          <div className="text-center py-8">Loading menu...</div>
+        ) : (
+          <div className="space-y-6">
+            {selectedCategory && (
+              <div>
+                <h2 className="text-lg font-semibold mb-4">{selectedCategory}</h2>
                 <div className="space-y-4">
-                  {category.items.map(item => {
-                    const cartItem = cart.find(cartItem => cartItem.id === item.id);
-                    
-                    return (
-                      <Card key={item.id} className="overflow-hidden">
-                        <CardContent className="p-0">
-                          <div className="flex">
-                            <div className="w-1/3 h-24 bg-muted">
-                              <img
-                                src={item.imageUrl}
-                                alt={item.name}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <div className="w-2/3 p-3 flex flex-col justify-between">
-                              <div>
-                                <h3 className="font-semibold">{item.name}</h3>
-                                <p className="text-muted-foreground text-xs line-clamp-2">{item.description}</p>
+                  {menuItems
+                    .filter(item => (item.category || 'Uncategorized') === selectedCategory)
+                    .map(item => {
+                      const cartItem = cart.find(cartItem => cartItem.id === item.id);
+                      
+                      return (
+                        <Card key={item.id} className="overflow-hidden">
+                          <CardContent className="p-0">
+                            <div className="flex">
+                              <div className="w-1/3 h-24 bg-muted">
+                                <img
+                                  src={item.image_url || '/placeholder.svg'}
+                                  alt={item.name}
+                                  className="h-full w-full object-cover"
+                                />
                               </div>
-                              
-                              <div className="flex justify-between items-center mt-2">
-                                <span className="font-medium">${item.price.toFixed(2)}</span>
+                              <div className="w-2/3 p-3 flex flex-col justify-between">
+                                <div>
+                                  <h3 className="font-semibold">{item.name}</h3>
+                                  <p className="text-muted-foreground text-xs line-clamp-2">{item.description}</p>
+                                </div>
                                 
-                                {cartItem ? (
-                                  <div className="flex items-center space-x-2">
+                                <div className="flex justify-between items-center mt-2">
+                                  <span className="font-medium">${item.price.toFixed(2)}</span>
+                                  
+                                  {cartItem ? (
+                                    <div className="flex items-center space-x-2">
+                                      <Button 
+                                        size="icon" 
+                                        variant="outline" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateQuantity(item.id, -1)}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-4 text-center">{cartItem.quantity}</span>
+                                      <Button 
+                                        size="icon" 
+                                        variant="outline" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateQuantity(item.id, 1)}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ) : (
                                     <Button 
-                                      size="icon" 
-                                      variant="outline" 
-                                      className="h-7 w-7"
-                                      onClick={() => updateQuantity(item.id, -1)}
+                                      size="sm" 
+                                      onClick={() => addToCart(item)}
                                     >
-                                      <Minus className="h-3 w-3" />
+                                      Add
                                     </Button>
-                                    <span className="w-4 text-center">{cartItem.quantity}</span>
-                                    <Button 
-                                      size="icon" 
-                                      variant="outline" 
-                                      className="h-7 w-7"
-                                      onClick={() => updateQuantity(item.id, 1)}
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => addToCart(item)}
-                                  >
-                                    Add
-                                  </Button>
-                                )}
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                 </div>
               </div>
-            ))}
-        </div>
+            )}
+          </div>
+        )}
       </div>
       
       {/* Cart Button (Fixed at Bottom) */}
@@ -282,8 +327,9 @@ const RestaurantProfileView = () => {
           <Button 
             className="w-full py-6" 
             onClick={handlePlaceOrder}
+            disabled={isPlacingOrder}
           >
-            Place Order • ${cartTotal.toFixed(2)} • {cart.reduce((total, item) => total + item.quantity, 0)} items
+            {isPlacingOrder ? 'Placing Order...' : `Place Order • $${cartTotal.toFixed(2)} • ${cart.reduce((total, item) => total + item.quantity, 0)} items`}
           </Button>
         </div>
       )}

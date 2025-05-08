@@ -205,6 +205,8 @@ export const deleteMenuItem = async (id: string): Promise<void> => {
 // Update restaurant details
 export const updateRestaurantDetails = async (restaurantId: string, updates: Partial<Omit<Restaurant, 'id'>>): Promise<Restaurant> => {
   try {
+    console.log("Updating restaurant details for ID:", restaurantId, "with data:", updates);
+    
     const { data, error } = await supabase
       .from('restaurant_details')
       .update(updates)
@@ -212,7 +214,10 @@ export const updateRestaurantDetails = async (restaurantId: string, updates: Par
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error updating restaurant details:", error);
+      throw error;
+    }
     
     return {
       id: data.restaurant_id,
@@ -235,6 +240,8 @@ export const updateRestaurantLocation = async (
   updates: { address: string; latitude?: number; longitude?: number }
 ): Promise<RestaurantLocation> => {
   try {
+    console.log("Updating restaurant location for ID:", restaurantId, "with data:", updates);
+    
     // First check if location exists
     const { data: existingLocation } = await supabase
       .from('restaurant_locations')
@@ -253,7 +260,10 @@ export const updateRestaurantLocation = async (
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error updating restaurant location:", error);
+        throw error;
+      }
       data = updatedData;
     } else {
       // Create new location
@@ -263,7 +273,10 @@ export const updateRestaurantLocation = async (
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error creating restaurant location:", error);
+        throw error;
+      }
       data = newData;
     }
     

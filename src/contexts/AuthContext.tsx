@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,17 +37,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (currentSession?.user) {
           // Using setTimeout to avoid any potential Supabase deadlocks
           setTimeout(async () => {
-            const { data, error } = await supabase
-              .from("profiles")
-              .select("user_type")
-              .eq("id", currentSession.user.id)
-              .single();
-            
-            if (!error && data) {
-              console.log("User type from profile:", data.user_type);
-              setUserType(data.user_type as UserType);
-            } else {
-              console.error("Error fetching user type:", error);
+            try {
+              const { data, error } = await supabase
+                .from("profiles")
+                .select("user_type")
+                .eq("id", currentSession.user.id)
+                .single();
+              
+              if (!error && data) {
+                console.log("User type from profile:", data.user_type);
+                setUserType(data.user_type as UserType);
+              } else {
+                console.error("Error fetching user type:", error);
+              }
+            } catch (err) {
+              console.error("Failed to fetch user type:", err);
             }
           }, 0);
         } else {
@@ -65,17 +68,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(currentSession?.user ?? null);
         
         if (currentSession?.user) {
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("user_type")
-            .eq("id", currentSession.user.id)
-            .single();
-          
-          if (!error && data) {
-            console.log("Initial user type:", data.user_type);
-            setUserType(data.user_type as UserType);
-          } else {
-            console.error("Error fetching initial user type:", error);
+          try {
+            const { data, error } = await supabase
+              .from("profiles")
+              .select("user_type")
+              .eq("id", currentSession.user.id)
+              .single();
+            
+            if (!error && data) {
+              console.log("Initial user type:", data.user_type);
+              setUserType(data.user_type as UserType);
+            } else {
+              console.error("Error fetching initial user type:", error);
+            }
+          } catch (err) {
+            console.error("Failed to fetch initial user type:", err);
           }
         }
       } catch (error) {
