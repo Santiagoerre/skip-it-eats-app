@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Restaurant {
@@ -8,6 +7,7 @@ export interface Restaurant {
   rating: number;
   price_range: string;
   distance?: string;
+  distanceValue?: number; // Add this property for sorting
   image_url: string;
   description?: string;
 }
