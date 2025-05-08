@@ -21,7 +21,7 @@ const GoogleSignUpButton = ({
     setIsLoading(true);
     
     try {
-      await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -30,13 +30,17 @@ const GoogleSignUpButton = ({
           }
         }
       });
+      
+      if (error) throw error;
+      
+      // The user will be redirected to Google and then back to our app
+      // The auth callback will handle creating the profile with the correct user_type
     } catch (err: any) {
       toast({
         title: "Error with Google Sign Up",
         description: err.message || "Could not sign up with Google",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
