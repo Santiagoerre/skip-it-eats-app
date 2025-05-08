@@ -49,7 +49,7 @@ export const submitOrder = async (
       throw error;
     }
     
-    return data;
+    return data as Order;
   } catch (error) {
     console.error('Error submitting order:', error);
     throw error;
@@ -70,7 +70,7 @@ export const fetchCustomerOrders = async (customerId: string): Promise<Order[]> 
       throw error;
     }
     
-    return data || [];
+    return data as Order[];
   } catch (error) {
     console.error('Error fetching customer orders:', error);
     return [];
@@ -91,7 +91,7 @@ export const fetchRestaurantOrders = async (restaurantId: string): Promise<Order
       throw error;
     }
     
-    return data || [];
+    return data as Order[];
   } catch (error) {
     console.error('Error fetching restaurant orders:', error);
     return [];
@@ -113,7 +113,7 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
       throw error;
     }
     
-    return data;
+    return data as Order;
   } catch (error) {
     console.error('Error updating order status:', error);
     throw error;

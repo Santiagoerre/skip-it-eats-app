@@ -45,6 +45,53 @@ export type Database = {
         }
         Relationships: []
       }
+      orders: {
+        Row: {
+          created_at: string
+          customer_id: string
+          customer_name: string
+          id: string
+          items: Json
+          restaurant_id: string
+          special_instructions: string | null
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          customer_name: string
+          id?: string
+          items: Json
+          restaurant_id: string
+          special_instructions?: string | null
+          status?: string
+          total: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          customer_name?: string
+          id?: string
+          items?: Json
+          restaurant_id?: string
+          special_instructions?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
