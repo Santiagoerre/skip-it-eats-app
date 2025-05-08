@@ -43,8 +43,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUserType(metadataUserType);
         
         // Ensure profile exists
-        setTimeout(() => {
-          ensureUserProfile(currentSession.user.id, metadataUserType);
+        setTimeout(async () => {
+          await ensureUserProfile(currentSession.user.id, metadataUserType);
         }, 0);
         
         return;
@@ -143,27 +143,81 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) throw error;
       
-      // Manually create profile if sign-up was successful
+      // Manually create profile if sign-up was successful and we have user data
       if (data?.user) {
         const userId = data.user.id;
         
         // Use setTimeout to avoid potential deadlocks
         setTimeout(async () => {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: userId,
-              user_type: userType,
-              display_name: metadata.display_name || null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-          
-          if (profileError) {
-            console.error("Error creating profile:", profileError);
-            // Non-blocking error - we'll still proceed with account creation
+          try {
+            // First check if profile already exists
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', userId)
+              .single();
+              
+            if (!existingProfile) {
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: userId,
+                  user_type: userType,
+                  display_name: metadata.display_name || null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                });
+              
+              if (profileError) {
+                console.error("Error creating profile:", profileError);
+              } else {
+                console.log("Created new profile with user type:", userType);
+              }
+            } else {
+              console.log("Profile already exists for user:", userId);
+            }
+          } catch (err) {
+            console.error("Error in profile creation:", err);
           }
         }, 0);
+        
+        // For restaurant users, create restaurant details
+        if (userType === 'restaurant') {
+          setTimeout(async () => {
+            try {
+              const { error: detailsError } = await supabase
+                .from('restaurant_details')
+                .insert({
+                  restaurant_id: userId,
+                  name: metadata.display_name || 'New Restaurant',
+                  cuisine: metadata.food_type || 'Not specified',
+                  price_range: '$'
+                });
+                
+              if (detailsError) {
+                console.error("Error creating restaurant details:", detailsError);
+              }
+              
+              // Create restaurant location if address data exists
+              if (metadata.address) {
+                const { error: locationError } = await supabase
+                  .from('restaurant_locations')
+                  .insert({
+                    restaurant_id: userId,
+                    address: metadata.address,
+                    latitude: metadata.latitude || 0,
+                    longitude: metadata.longitude || 0
+                  });
+                  
+                if (locationError) {
+                  console.error("Error creating restaurant location:", locationError);
+                }
+              }
+            } catch (err) {
+              console.error("Error in restaurant details creation:", err);
+            }
+          }, 0);
+        }
       }
     } catch (error: any) {
       toast({

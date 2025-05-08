@@ -17,26 +17,24 @@ const SignIn = () => {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [redirectAttempted, setRedirectAttempted] = useState(false);
 
   // Redirect to appropriate dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && session) {
-      const redirect = () => {
-        console.log("SignIn - redirecting based on user type:", userType);
-        if (userType === "restaurant") {
-          navigate("/restaurant-dashboard");
-        } else if (userType === "customer") {
-          navigate("/app");
-        } else {
-          // If user has no type yet, navigate to user type selection
-          navigate("/signup");
-        }
-      };
+    if (!isLoading && session && userType && !redirectAttempted) {
+      setRedirectAttempted(true);
+      console.log("SignIn - redirecting based on user type:", userType);
       
-      // Small delay to ensure userType is loaded
-      setTimeout(redirect, 100);
+      if (userType === "restaurant") {
+        navigate("/restaurant-dashboard");
+      } else if (userType === "customer") {
+        navigate("/app");
+      } else {
+        // If user has no type yet, navigate to user type selection
+        navigate("/signup");
+      }
     }
-  }, [isLoading, session, userType, navigate]);
+  }, [isLoading, session, userType, navigate, redirectAttempted]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +50,7 @@ const SignIn = () => {
       });
       
       // Let the effect handle the redirection based on userType
+      setRedirectAttempted(false);
     } catch (err: any) {
       setError(err.message || "Failed to sign in");
     } finally {

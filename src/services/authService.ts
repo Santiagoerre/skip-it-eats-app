@@ -43,26 +43,6 @@ export const getCurrentUserType = async (): Promise<'customer' | 'restaurant' | 
     
     if (!data) {
       console.log("No profile found for user:", session.user.id);
-      
-      // As a fallback, try to create a profile with the user type from metadata
-      if (userType) {
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: session.user.id,
-            user_type: userType,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-        } else {
-          console.log("Created new profile with user type:", userType);
-          return userType;
-        }
-      }
-      
       return null;
     }
     
@@ -81,7 +61,10 @@ export const updateUserProfile = async (
   try {
     const { error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId);
     
     if (error) throw error;
@@ -92,7 +75,7 @@ export const updateUserProfile = async (
   }
 };
 
-// Add a function to ensure profile exists
+// Ensure profile exists and create if it doesn't
 export const ensureUserProfile = async (userId: string, userType: 'customer' | 'restaurant'): Promise<boolean> => {
   try {
     // Check if profile exists
@@ -124,6 +107,31 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       }
       
       console.log("Created new profile for user:", userId);
+      
+      // For restaurant users, ensure restaurant_details exists
+      if (userType === 'restaurant') {
+        const { data: existingDetails } = await supabase
+          .from('restaurant_details')
+          .select('id')
+          .eq('restaurant_id', userId)
+          .maybeSingle();
+          
+        if (!existingDetails) {
+          const { error: detailsError } = await supabase
+            .from('restaurant_details')
+            .insert({
+              restaurant_id: userId,
+              name: 'New Restaurant',
+              price_range: '$',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+            
+          if (detailsError) {
+            console.error('Error creating restaurant details:', detailsError);
+          }
+        }
+      }
     }
     
     return true;

@@ -17,15 +17,15 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
 
   useEffect(() => {
     const verifyAuth = async () => {
-      try {
-        // Wait for the auth context to initialize
-        if (isLoading) {
-          return;
-        }
+      // Wait for the auth context to initialize
+      if (isLoading) {
+        return;
+      }
 
-        console.log("ProtectedRoute - verifying auth:", { session, userType, requiredUserType });
-        setIsCheckingAuth(true);
-        
+      console.log("ProtectedRoute - verifying auth:", { session, userType, requiredUserType });
+      setIsCheckingAuth(true);
+      
+      try {
         // If no session, redirect to sign in
         if (!session) {
           console.log("No session, redirecting to signin");

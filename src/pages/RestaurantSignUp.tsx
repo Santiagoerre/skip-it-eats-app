@@ -65,24 +65,43 @@ const RestaurantSignUp = () => {
         longitude: longitude
       });
       
-      // If we have a session and image file, upload it
-      if (imageFile) {
-        // Get the newly created user
-        const { data: { session } } = await supabase.auth.getSession();
+      // Check if the user was actually created
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // If we have a user and image file, upload it
+      if (user && imageFile) {
+        const fileName = `${user.id}/profile`;
+        const { error: uploadError } = await supabase.storage
+          .from('restaurant-images')
+          .upload(fileName, imageFile, {
+            upsert: true
+          });
         
-        if (session?.user) {
-          const { error: uploadError } = await supabase.storage
+        if (uploadError) {
+          console.error("Error uploading image:", uploadError);
+          // Non-blocking error - we'll still proceed with account creation
+          toast({
+            title: "Image upload failed",
+            description: "Your account was created, but we couldn't upload your image. You can add it later.",
+            variant: "destructive",
+          });
+        } else {
+          // Get the public URL for the uploaded image
+          const { data: publicUrlData } = supabase
+            .storage
             .from('restaurant-images')
-            .upload(`${session.user.id}/profile`, imageFile);
-          
-          if (uploadError) {
-            console.error("Error uploading image:", uploadError);
-            // Non-blocking error - we'll still proceed with account creation
-            toast({
-              title: "Image upload failed",
-              description: "Your account was created, but we couldn't upload your image. You can add it later.",
-              variant: "destructive",
-            });
+            .getPublicUrl(fileName);
+            
+          // Update restaurant details with the image URL
+          if (publicUrlData?.publicUrl) {
+            const { error: detailsError } = await supabase
+              .from('restaurant_details')
+              .update({ image_url: publicUrlData.publicUrl })
+              .eq('restaurant_id', user.id);
+              
+            if (detailsError) {
+              console.error("Error updating restaurant image URL:", detailsError);
+            }
           }
         }
       }
@@ -94,8 +113,8 @@ const RestaurantSignUp = () => {
       
       navigate("/signup-success");
     } catch (error) {
+      console.error("Restaurant signup error:", error);
       // Error is handled in the signUp function
-      console.error(error);
     } finally {
       setIsLoading(false);
     }
