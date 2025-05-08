@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// Define the OrderStatus type to fix the type error
+type OrderStatus = "pending" | "confirmed" | "completed" | "cancelled";
+
 // Mock data for orders - will be replaced with real API calls
 const mockOrders = [
   {
@@ -18,7 +21,7 @@ const mockOrders = [
       { name: "Soda", quantity: 1, price: 1.99 }
     ],
     total: 18.97,
-    status: "pending",
+    status: "pending" as OrderStatus,
     time: "Today, 5:30 PM",
     specialInstructions: "No onions on the burger please"
   },
@@ -30,7 +33,7 @@ const mockOrders = [
       { name: "Breadsticks", quantity: 1, price: 4.99 }
     ],
     total: 19.98,
-    status: "confirmed",
+    status: "confirmed" as OrderStatus,
     time: "Today, 5:15 PM"
   },
   {
@@ -41,12 +44,10 @@ const mockOrders = [
       { name: "Iced Tea", quantity: 1, price: 2.99 }
     ],
     total: 12.98,
-    status: "completed",
+    status: "completed" as OrderStatus,
     time: "Today, 4:30 PM"
   }
 ];
-
-type OrderStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
 interface Order {
   id: string;
