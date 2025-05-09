@@ -119,12 +119,15 @@ export const fetchRestaurantLocation = async (restaurantId: string): Promise<Res
       return null;
     }
     
+    console.log("Location data found:", data);
+    
+    // Make sure latitude and longitude are numbers
     return {
       id: data.id,
       restaurant_id: data.restaurant_id,
       address: data.address,
-      latitude: data.latitude || 0,
-      longitude: data.longitude || 0
+      latitude: typeof data.latitude === 'number' ? data.latitude : 0,
+      longitude: typeof data.longitude === 'number' ? data.longitude : 0
     };
   } catch (error) {
     console.error('Error fetching restaurant location:', error);
@@ -242,20 +245,34 @@ export const updateRestaurantLocation = async (
   try {
     console.log("Updating restaurant location for ID:", restaurantId, "with data:", updates);
     
+    // Validate coordinates
+    const updatesWithValidCoords = {
+      ...updates,
+      latitude: typeof updates.latitude === 'number' && !isNaN(updates.latitude) ? updates.latitude : 0,
+      longitude: typeof updates.longitude === 'number' && !isNaN(updates.longitude) ? updates.longitude : 0
+    };
+    
+    console.log("Validated location data:", updatesWithValidCoords);
+    
     // First check if location exists
-    const { data: existingLocation } = await supabase
+    const { data: existingLocation, error: checkError } = await supabase
       .from('restaurant_locations')
       .select('id')
       .eq('restaurant_id', restaurantId)
       .maybeSingle();
+      
+    if (checkError) {
+      console.error("Error checking for existing location:", checkError);
+    }
     
     let data;
     
     if (existingLocation) {
+      console.log("Updating existing location record");
       // Update existing location
       const { data: updatedData, error } = await supabase
         .from('restaurant_locations')
-        .update(updates)
+        .update(updatesWithValidCoords)
         .eq('restaurant_id', restaurantId)
         .select()
         .single();
@@ -266,10 +283,11 @@ export const updateRestaurantLocation = async (
       }
       data = updatedData;
     } else {
+      console.log("Creating new location record");
       // Create new location
       const { data: newData, error } = await supabase
         .from('restaurant_locations')
-        .insert([{ restaurant_id: restaurantId, ...updates }])
+        .insert([{ restaurant_id: restaurantId, ...updatesWithValidCoords }])
         .select()
         .single();
       
@@ -280,12 +298,14 @@ export const updateRestaurantLocation = async (
       data = newData;
     }
     
+    console.log("Location updated successfully:", data);
+    
     return {
       id: data.id,
       restaurant_id: data.restaurant_id,
       address: data.address,
-      latitude: data.latitude || 0,
-      longitude: data.longitude || 0
+      latitude: typeof data.latitude === 'number' ? data.latitude : 0,
+      longitude: typeof data.longitude === 'number' ? data.longitude : 0
     };
   } catch (error) {
     console.error('Error updating restaurant location:', error);

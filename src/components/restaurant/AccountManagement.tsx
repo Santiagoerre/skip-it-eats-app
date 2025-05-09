@@ -28,6 +28,8 @@ const AccountManagement = () => {
   const [priceRange, setPriceRange] = useState("");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
+  const [latitude, setLatitude] = useState(0);
+  const [longitude, setLongitude] = useState(0);
   
   useEffect(() => {
     if (user) {
@@ -57,6 +59,8 @@ const AccountManagement = () => {
       if (locationData) {
         setLocation(locationData);
         setAddress(locationData.address);
+        setLatitude(locationData.latitude || 0);
+        setLongitude(locationData.longitude || 0);
       }
     } catch (error) {
       console.error("Error loading restaurant data:", error);
@@ -68,6 +72,11 @@ const AccountManagement = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCoordinatesChange = (newLatitude: number, newLongitude: number) => {
+    setLatitude(newLatitude);
+    setLongitude(newLongitude);
   };
   
   const handleSave = async () => {
@@ -83,12 +92,12 @@ const AccountManagement = () => {
         description
       });
       
-      // Update location if address changed
-      if (address !== location?.address) {
-        await updateRestaurantLocation(user.id, {
-          address
-        });
-      }
+      // Update location with coordinates
+      await updateRestaurantLocation(user.id, {
+        address,
+        latitude,
+        longitude
+      });
       
       toast({
         title: "Changes saved",
@@ -140,6 +149,7 @@ const AccountManagement = () => {
         location={location}
         address={address}
         onAddressChange={setAddress}
+        onCoordinatesChange={handleCoordinatesChange}
       />
       
       <AccountActions 

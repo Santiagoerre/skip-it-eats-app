@@ -55,15 +55,21 @@ export const useFormValidation = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Add a new function to validate address fields
+  // Validate address fields
   const validateLocationData = (address: string) => {
     const newErrors: ValidationErrors = {};
     
     if (!address || address.trim() === '') {
       newErrors.address = "Address is required";
+    } else if (address.trim().length < 5) {
+      newErrors.address = "Please enter a complete address";
     }
     
-    setErrors(newErrors);
+    setErrors(prevErrors => ({
+      ...prevErrors,
+      ...newErrors
+    }));
+    
     return Object.keys(newErrors).length === 0;
   };
 

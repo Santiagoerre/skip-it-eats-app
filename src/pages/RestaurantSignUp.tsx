@@ -26,12 +26,13 @@ const RestaurantSignUp = () => {
   const [longitude, setLongitude] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { errors, validateEmailAndPassword } = useFormValidation();
+  const { errors, validateEmailAndPassword, validateLocationData } = useFormValidation();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateEmailAndPassword(email, password, confirmPassword, {
+    // Validate form fields
+    const isFormValid = validateEmailAndPassword(email, password, confirmPassword, {
       foodType: {
         value: foodType,
         required: true,
@@ -43,21 +44,30 @@ const RestaurantSignUp = () => {
         required: true,
         validator: (value: string) => value.length > 2,
         errorMessage: "Restaurant name is required"
-      },
-      address: {
-        value: address,
-        required: true,
-        validator: (value: string) => value.length > 5,
-        errorMessage: "Please enter a valid address"
       }
-    })) {
+    });
+
+    // Validate location data separately
+    const isLocationValid = validateLocationData(address);
+    
+    if (!isFormValid || !isLocationValid) {
+      return;
+    }
+
+    // Verify we have coordinates
+    if (latitude === 0 && longitude === 0) {
+      toast({
+        title: "Location Required",
+        description: "Please validate your address to get coordinates",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsLoading(true);
     
     try {
-      console.log("Starting restaurant signup process...");
+      console.log("Starting restaurant signup process with coordinates:", { latitude, longitude });
       
       // Register with Supabase with additional metadata
       const signUpResult = await signUp(email, password, "restaurant", { 
