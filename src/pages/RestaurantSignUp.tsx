@@ -72,7 +72,7 @@ const RestaurantSignUp = () => {
       console.log("Starting restaurant signup process with coordinates:", { latitude, longitude });
       
       // Register with Supabase with additional metadata
-      const { error } = await signUp(email, password, "restaurant", { 
+      const result = await signUp(email, password, "restaurant", { 
         display_name: restaurantName,
         food_type: foodType,
         address: address,
@@ -80,8 +80,8 @@ const RestaurantSignUp = () => {
         longitude: longitude
       });
       
-      if (error) {
-        throw error;
+      if (result?.error) {
+        throw result.error;
       }
       
       // Check if the user was actually created
