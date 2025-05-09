@@ -45,14 +45,16 @@ const SignIn = () => {
         console.log("SignIn - redirecting based on user type:", userType);
         redirectBasedOnUserType(userType);
       } else {
-        // If user has no type yet, navigate to user type selection
-        console.log("User has no type, redirecting to signup for type selection");
+        // If user has no type yet, they should create a profile
+        // We shouldn't end up here if auth is properly set up, but just in case
+        console.log("User has no type, redirecting to user type selection");
         navigate("/signup");
       }
     }
   }, [isLoading, session, userType, navigate, redirectAttempted, user]);
 
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
+    console.log(`Redirecting user based on type: ${type}`);
     if (type === "restaurant") {
       navigate("/restaurant-dashboard");
     } else if (type === "customer") {

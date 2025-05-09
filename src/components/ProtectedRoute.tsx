@@ -45,14 +45,14 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
             // This will create a profile if one doesn't exist
             await ensureUserProfile(user.id, metadataUserType);
             
-            // Redirect based on user type from metadata
+            // Handle redirection based on user type from metadata
             if (requiredUserType && metadataUserType !== requiredUserType) {
               redirectBasedOnUserType(metadataUserType);
               return;
             }
           } else {
-            console.log("No user type found, redirecting to signin for type selection");
-            navigate("/signin");
+            console.log("No user type found, redirecting to signup for type selection");
+            navigate("/signup");
             return;
           }
         }
