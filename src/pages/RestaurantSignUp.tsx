@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +26,14 @@ const RestaurantSignUp = () => {
   const [longitude, setLongitude] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { errors, validateEmailAndPassword, validateLocationData } = useFormValidation();
+  const { errors, validateEmailAndPassword, validateLocationData, resetErrors } = useFormValidation();
+
+  // Reset errors when component unmounts
+  useEffect(() => {
+    return () => {
+      resetErrors();
+    };
+  }, []);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,18 +54,13 @@ const RestaurantSignUp = () => {
       }
     });
 
-    // Validate location data separately
-    const isLocationValid = validateLocationData(address);
+    // Validate location data with coordinates
+    const isLocationValid = validateLocationData(address, latitude, longitude);
     
     if (!isFormValid || !isLocationValid) {
-      return;
-    }
-
-    // Verify we have coordinates
-    if (latitude === 0 && longitude === 0) {
       toast({
-        title: "Location Required",
-        description: "Please validate your address to get coordinates",
+        title: "Validation Error",
+        description: "Please check the form for errors and try again.",
         variant: "destructive",
       });
       return;
@@ -70,13 +72,17 @@ const RestaurantSignUp = () => {
       console.log("Starting restaurant signup process with coordinates:", { latitude, longitude });
       
       // Register with Supabase with additional metadata
-      const signUpResult = await signUp(email, password, "restaurant", { 
+      const { error } = await signUp(email, password, "restaurant", { 
         display_name: restaurantName,
         food_type: foodType,
         address: address,
         latitude: latitude,
         longitude: longitude
       });
+      
+      if (error) {
+        throw error;
+      }
       
       // Check if the user was actually created
       const { data: { user } } = await supabase.auth.getUser();

@@ -7,6 +7,7 @@ interface ValidationErrors {
   confirmPassword?: string;
   foodType?: string;
   address?: string;
+  restaurantName?: string;
   [key: string]: string | undefined;
 }
 
@@ -56,13 +57,17 @@ export const useFormValidation = () => {
   };
 
   // Validate address fields
-  const validateLocationData = (address: string) => {
+  const validateLocationData = (address: string, latitude = 0, longitude = 0) => {
     const newErrors: ValidationErrors = {};
     
     if (!address || address.trim() === '') {
       newErrors.address = "Address is required";
     } else if (address.trim().length < 5) {
       newErrors.address = "Please enter a complete address";
+    }
+    
+    if (latitude === 0 && longitude === 0) {
+      newErrors.address = "Please validate your address to get coordinates";
     }
     
     setErrors(prevErrors => ({
@@ -73,10 +78,16 @@ export const useFormValidation = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Reset all errors
+  const resetErrors = () => {
+    setErrors({});
+  };
+
   return {
     errors,
     setErrors,
     validateEmailAndPassword,
     validateLocationData,
+    resetErrors,
   };
 };

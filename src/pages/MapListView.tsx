@@ -39,7 +39,6 @@ const MapListView = () => {
   const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [filters, setFilters] = useState({
     cuisine: "All",
-    maxDistance: 10, // miles
     minRating: 0,
     price: "All",
   });
@@ -119,8 +118,6 @@ const MapListView = () => {
     
     const matchesCuisine = filters.cuisine === "All" || restaurant.cuisine === filters.cuisine;
     
-    const matchesDistance = !restaurant.distanceValue || restaurant.distanceValue <= filters.maxDistance;
-    
     const matchesRating = restaurant.rating >= filters.minRating;
     
     const matchesPrice = filters.price === "All" || 
@@ -129,13 +126,12 @@ const MapListView = () => {
                          (filters.price === "$$$" && restaurant.price_range === "$$$") ||
                          (filters.price === "$$$$" && restaurant.price_range === "$$$$");
     
-    return matchesSearch && matchesCuisine && matchesDistance && matchesRating && matchesPrice;
+    return matchesSearch && matchesCuisine && matchesRating && matchesPrice;
   });
 
   const resetFilters = () => {
     setFilters({
       cuisine: "All",
-      maxDistance: 10,
       minRating: 0,
       price: "All",
     });
@@ -201,20 +197,6 @@ const MapListView = () => {
                       </div>
                     ))}
                   </RadioGroup>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label>Maximum Distance</Label>
-                    <span className="text-sm text-muted-foreground">{filters.maxDistance} miles</span>
-                  </div>
-                  <Slider
-                    value={[filters.maxDistance]}
-                    min={0.5}
-                    max={20}
-                    step={0.5}
-                    onValueChange={(value) => setFilters({...filters, maxDistance: value[0]})}
-                  />
                 </div>
                 
                 <div className="space-y-2">
