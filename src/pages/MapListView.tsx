@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal, MapPin, X } from "lucide-react";
@@ -28,14 +29,13 @@ import {
   formatDistance, 
   fetchRestaurantLocation 
 } from "@/services/restaurantService";
+import { useQuery } from "@tanstack/react-query";
 
 const MapListView = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [view, setView] = useState<"list" | "map">("list");
   const [searchQuery, setSearchQuery] = useState("");
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [filters, setFilters] = useState({
     cuisine: "All",
@@ -44,58 +44,60 @@ const MapListView = () => {
     price: "All",
   });
 
-  // Fetch restaurant data
-  useEffect(() => {
-    const loadRestaurants = async () => {
+  // Use React Query to fetch restaurant data
+  const { data: restaurants = [], isLoading } = useQuery({
+    queryKey: ['restaurants'],
+    queryFn: async () => {
       try {
-        setIsLoading(true);
         const data = await fetchRestaurants();
-
+        
         // Get user location if available
         if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              const userLat = position.coords.latitude;
-              const userLon = position.coords.longitude;
-              setUserLocation({ latitude: userLat, longitude: userLon });
-              
-              // Add distance to each restaurant
-              const restaurantsWithDistance = await Promise.all(
-                data.map(async (restaurant) => {
-                  const location = await fetchRestaurantLocation(restaurant.id);
-                  if (location && location.latitude && location.longitude) {
-                    const distance = calculateDistance(
-                      userLat, userLon,
-                      location.latitude, location.longitude
-                    );
+          return new Promise<Restaurant[]>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              async (position) => {
+                const userLat = position.coords.latitude;
+                const userLon = position.coords.longitude;
+                setUserLocation({ latitude: userLat, longitude: userLon });
+                
+                // Add distance to each restaurant
+                const restaurantsWithDistance = await Promise.all(
+                  data.map(async (restaurant) => {
+                    const location = await fetchRestaurantLocation(restaurant.id);
+                    if (location && location.latitude && location.longitude) {
+                      const distance = calculateDistance(
+                        userLat, userLon,
+                        location.latitude, location.longitude
+                      );
+                      return {
+                        ...restaurant,
+                        distance: formatDistance(distance),
+                        distanceValue: distance * 0.621371 // km to miles
+                      };
+                    }
                     return {
                       ...restaurant,
-                      distance: formatDistance(distance),
-                      distanceValue: distance * 0.621371 // km to miles
+                      distance: 'Unknown',
+                      distanceValue: Infinity
                     };
-                  }
-                  return {
-                    ...restaurant,
-                    distance: 'Unknown',
-                    distanceValue: Infinity
-                  };
-                })
-              );
-              
-              // Sort by distance
-              restaurantsWithDistance.sort((a, b) => {
-                return (a.distanceValue || Infinity) - (b.distanceValue || Infinity);
-              });
-              
-              setRestaurants(restaurantsWithDistance);
-            },
-            (error) => {
-              console.error('Error getting user location:', error);
-              setRestaurants(data);
-            }
-          );
+                  })
+                );
+                
+                // Sort by distance
+                restaurantsWithDistance.sort((a, b) => {
+                  return (a.distanceValue || Infinity) - (b.distanceValue || Infinity);
+                });
+                
+                resolve(restaurantsWithDistance);
+              },
+              (error) => {
+                console.error('Error getting user location:', error);
+                resolve(data);
+              }
+            );
+          });
         } else {
-          setRestaurants(data);
+          return data;
         }
       } catch (error) {
         console.error('Error loading restaurants:', error);
@@ -104,13 +106,11 @@ const MapListView = () => {
           description: "Could not load restaurant data. Please try again.",
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
+        return [];
       }
-    };
-
-    loadRestaurants();
-  }, [toast]);
+    },
+    refetchOnWindowFocus: false,
+  });
 
   // Filter restaurants based on search query and filters
   const filteredRestaurants = restaurants.filter((restaurant) => {

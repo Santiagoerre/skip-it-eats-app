@@ -5,14 +5,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { fetchRestaurants, fetchRestaurantLocation } from "@/services/restaurantService";
 
 interface Restaurant {
   id: string;
   name: string;
   cuisine: string;
   price_range: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
+  image_url?: string;
 }
 
 interface MapViewProps {
@@ -21,71 +24,42 @@ interface MapViewProps {
 
 const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<GeolocationPosition | null>(null);
   const { toast } = useToast();
   const [mapError, setMapError] = useState<string | null>(null);
 
-  // Fetch restaurant data from Supabase
-  useEffect(() => {
-    const fetchRestaurants = async () => {
+  // Fetch restaurants with React Query
+  const { data: restaurants = [], isLoading } = useQuery({
+    queryKey: ['mapRestaurants'],
+    queryFn: async () => {
       try {
-        // Modified query to properly join the tables
-        const { data, error } = await supabase
-          .from('restaurant_details')
-          .select(`
-            name,
-            cuisine,
-            price_range,
-            restaurant_id
-          `);
-
-        if (error) throw error;
-
-        if (data) {
-          // Fetch locations separately
-          const locationsPromises = data.map(async (restaurant) => {
-            const { data: locationData, error: locationError } = await supabase
-              .from('restaurant_locations')
-              .select('latitude, longitude')
-              .eq('restaurant_id', restaurant.restaurant_id)
-              .maybeSingle();
-            
-            if (locationError) {
-              console.error('Error fetching location:', locationError);
-              return null;
-            }
+        const restaurantsData = await fetchRestaurants();
+        
+        // Get location data for each restaurant
+        const restaurantsWithLocation = await Promise.all(
+          restaurantsData.map(async (restaurant) => {
+            const location = await fetchRestaurantLocation(restaurant.id);
             
             return {
-              id: restaurant.restaurant_id,
-              name: restaurant.name,
-              cuisine: restaurant.cuisine || 'Not specified',
-              price_range: restaurant.price_range || '$',
-              latitude: locationData?.latitude || null,
-              longitude: locationData?.longitude || null
+              ...restaurant,
+              latitude: location?.latitude,
+              longitude: location?.longitude
             };
-          });
-          
-          const restaurantsWithLocation = (await Promise.all(locationsPromises))
-            .filter(r => r && r.latitude && r.longitude) as Restaurant[];
-          
-          setRestaurants(restaurantsWithLocation);
-        }
-      } catch (error: any) {
-        console.error('Error fetching restaurants:', error);
-        toast({
-          title: "Error loading restaurants",
-          description: error.message || "Could not load restaurant data",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+          })
+        );
+        
+        // Filter out restaurants with no location
+        return restaurantsWithLocation.filter(
+          r => r.latitude !== undefined && r.longitude !== undefined
+        ) as Restaurant[];
+      } catch (error) {
+        console.error('Error fetching restaurants for map:', error);
+        setMapError('Failed to load restaurant data');
+        return [];
       }
-    };
-
-    fetchRestaurants();
-  }, [toast]);
+    },
+    refetchOnWindowFocus: false,
+  });
 
   // Get user's location
   useEffect(() => {
@@ -95,29 +69,34 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
           setUserLocation(position);
         },
         (error) => {
-          console.error('Error getting location:', error);
+          console.error('Error getting user location:', error);
           toast({
-            title: "Location error",
-            description: "Unable to get your current location. Using default view.",
+            title: "Location not available",
+            description: "Please enable location services to see nearby restaurants",
             variant: "destructive",
           });
         }
       );
+    } else {
+      toast({
+        title: "Location not supported",
+        description: "Your browser doesn't support geolocation",
+        variant: "destructive",
+      });
     }
   }, [toast]);
 
-  // Initialize map after data and container are ready
+  // Initialize map after data is loaded
   useEffect(() => {
     if (isLoading || !mapRef.current || restaurants.length === 0) {
       return;
     }
 
-    // Since we can't use mapbox or other map libraries directly in this environment,
-    // we'll create a simple map visualization
     try {
       const mapContainer = mapRef.current;
       mapContainer.innerHTML = '';
       
+      // Create map wrapper
       const mapWrapper = document.createElement('div');
       mapWrapper.className = 'relative bg-gray-100 rounded-lg w-full h-full overflow-hidden';
       
@@ -129,13 +108,12 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       restaurants.forEach(restaurant => {
         if (!restaurant.latitude || !restaurant.longitude) return;
         
-        // Normalize coordinates to fit our container (this is simplified)
-        // In a real app, you'd use a proper mapping library
+        // Normalize coordinates to fit our container (simplified mapping)
         const x = ((restaurant.longitude + 180) / 360) * 100;
         const y = ((90 - restaurant.latitude) / 180) * 100;
         
         const marker = document.createElement('div');
-        marker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer';
+        marker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10';
         marker.style.left = `${x}%`;
         marker.style.top = `${y}%`;
         
@@ -147,7 +125,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         
         // Add restaurant name tooltip
         const tooltip = document.createElement('div');
-        tooltip.className = 'absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white p-2 rounded shadow-md text-xs whitespace-nowrap opacity-0 pointer-events-none transition-opacity';
+        tooltip.className = 'absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white p-2 rounded shadow-md text-xs whitespace-nowrap opacity-0 pointer-events-none transition-opacity z-20';
         tooltip.textContent = restaurant.name;
         marker.appendChild(tooltip);
         
@@ -162,7 +140,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
           tooltip.classList.add('opacity-0');
         });
         
-        // Handle marker click
+        // Handle marker click to navigate to restaurant
         marker.addEventListener('click', () => {
           onRestaurantSelect(restaurant.id);
         });
@@ -176,7 +154,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         const userY = ((90 - userLocation.coords.latitude) / 180) * 100;
         
         const userMarker = document.createElement('div');
-        userMarker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2';
+        userMarker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 z-20';
         userMarker.style.left = `${userX}%`;
         userMarker.style.top = `${userY}%`;
         
@@ -188,16 +166,26 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         mapUI.appendChild(userMarker);
       }
       
+      // Add a simple grid to represent the map (since we can't use real map libraries)
+      const grid = document.createElement('div');
+      grid.className = 'absolute inset-0 grid grid-cols-10 grid-rows-10 z-0';
+      for (let i = 0; i < 100; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'border border-gray-200 opacity-10';
+        grid.appendChild(cell);
+      }
+      mapUI.appendChild(grid);
+      
       mapWrapper.appendChild(mapUI);
       mapContainer.appendChild(mapWrapper);
       
       // Add disclaimer
       const disclaimer = document.createElement('div');
       disclaimer.className = 'absolute bottom-2 right-2 bg-white/80 p-1 rounded text-xs text-gray-500';
-      disclaimer.textContent = 'Simplified map view';
+      disclaimer.textContent = 'Map View (Simplified)';
       mapWrapper.appendChild(disclaimer);
       
-      // Add styles for pulse animation
+      // Add pulse animation style
       const style = document.createElement('style');
       style.textContent = `
         .pulseAnimation {
@@ -219,12 +207,29 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         }
       `;
       document.head.appendChild(style);
-      
     } catch (error) {
       console.error('Error initializing map:', error);
       setMapError('Unable to initialize map. Please try again later.');
     }
   }, [isLoading, restaurants, userLocation, onRestaurantSelect]);
+
+  // Center map on user location
+  const centerOnUserLocation = () => {
+    if (userLocation && mapRef.current) {
+      toast({
+        title: "Map Centered",
+        description: "Map centered on your current location",
+      });
+      
+      // In a real app with a proper map library, we would do actual panning/zooming here
+      // For now we'll just refresh the map to re-render with the user at center
+      const oldMap = mapRef.current.innerHTML;
+      mapRef.current.innerHTML = '';
+      setTimeout(() => {
+        if (mapRef.current) mapRef.current.innerHTML = oldMap;
+      }, 10);
+    }
+  };
 
   if (isLoading) {
     return <Skeleton className="w-full h-full rounded-lg" />;
@@ -246,7 +251,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
         <MapPin className="h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium mb-2">No Restaurants Found</h3>
-        <p className="text-muted-foreground text-sm">We couldn't find any restaurants in your area.</p>
+        <p className="text-muted-foreground text-sm">We couldn't find any restaurants with location data.</p>
       </div>
     );
   }
@@ -258,13 +263,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         <Button 
           size="sm" 
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-2"
-          onClick={() => {
-            // In a real app, this would re-center the map
-            toast({
-              title: "Location centered",
-              description: "Map centered on your current location",
-            });
-          }}
+          onClick={centerOnUserLocation}
         >
           <Navigation className="h-4 w-4" />
           <span>Center on me</span>

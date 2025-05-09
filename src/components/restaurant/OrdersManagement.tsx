@@ -10,31 +10,26 @@ import { fetchRestaurantOrders, updateOrderStatus } from "@/services/orderServic
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { mockOrders } from "./orders/mockData";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const OrdersManagement = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [orders, setOrders] = useState<OrderProps[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [useRealData, setUseRealData] = useState(true);
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"pending" | "confirmed" | "history">("pending");
   
-  // Filter orders by status
-  const pendingOrders = orders.filter(order => order.status === "pending");
-  const confirmedOrders = orders.filter(order => order.status === "confirmed");
-  const completedOrders = orders.filter(order => order.status === "completed" || order.status === "cancelled");
-  
-  // Load orders when component mounts
-  useEffect(() => {
-    const loadOrders = async () => {
-      if (!user) return;
+  // Use React Query to fetch and cache orders
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['restaurantOrders', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
       
-      setIsLoading(true);
       try {
         const restaurantOrders = await fetchRestaurantOrders(user.id);
         
         if (restaurantOrders.length > 0) {
           // Transform to OrderProps format
-          const formattedOrders: OrderProps[] = restaurantOrders.map(order => ({
+          return restaurantOrders.map(order => ({
             id: order.id,
             customer: order.customer_name,
             items: order.items,
@@ -43,53 +38,41 @@ const OrdersManagement = () => {
             time: new Date(order.created_at).toLocaleString(),
             specialInstructions: order.special_instructions
           }));
-          
-          setOrders(formattedOrders);
-          setUseRealData(true);
         } else {
-          // If no real orders, use mock data
-          setOrders(mockOrders);
-          setUseRealData(false);
+          // If no real orders, use mock data for demo purposes
+          toast({
+            title: "No orders found",
+            description: "Using sample data for demonstration",
+          });
+          return mockOrders;
         }
       } catch (error) {
         console.error("Error loading orders:", error);
-        setOrders(mockOrders);
-        setUseRealData(false);
         toast({
           title: "Error",
           description: "Could not load orders. Using sample data instead.",
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
+        return mockOrders;
       }
-    };
-    
-    loadOrders();
-  }, [user, toast]);
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30000, // Refetch every 30 seconds to get new orders
+  });
   
-  // Handle order status updates
-  async function handleOrderStatusUpdate(orderId: string, status: OrderStatus) {
-    try {
-      if (useRealData) {
-        // Update in database
-        await updateOrderStatus(orderId, status);
-      }
-      
-      // Update local state
-      setOrders(
-        orders.map(order => 
-          order.id === orderId 
-            ? { ...order, status } 
-            : order
-        )
-      );
-      
+  // Use mutation for updating order status
+  const updateOrderMutation = useMutation({
+    mutationFn: ({ orderId, status }: { orderId: string, status: OrderStatus }) => 
+      updateOrderStatus(orderId, status),
+    onSuccess: () => {
+      // Invalidate the orders query to refetch data
+      queryClient.invalidateQueries({ queryKey: ['restaurantOrders'] });
       toast({
         title: "Order Updated",
-        description: `Order status changed to ${status}`,
+        description: "Order status has been updated successfully",
       });
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Error updating order:", error);
       toast({
         title: "Update Failed",
@@ -97,19 +80,31 @@ const OrdersManagement = () => {
         variant: "destructive",
       });
     }
-  }
+  });
+  
+  // Filter orders by status
+  const pendingOrders = orders.filter(order => order.status === "pending");
+  const confirmedOrders = orders.filter(order => order.status === "confirmed");
+  const completedOrders = orders.filter(order => 
+    order.status === "completed" || order.status === "cancelled"
+  );
+  
+  // Handle order status updates
+  const handleOrderStatusUpdate = (orderId: string, status: OrderStatus) => {
+    updateOrderMutation.mutate({ orderId, status });
+  };
   
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Orders Management</h2>
       
-      {!useRealData && (
+      {orders.length > 0 && orders[0] === mockOrders[0] && (
         <div className="bg-yellow-50 text-yellow-800 p-3 rounded-md text-sm mb-4">
           Showing sample orders. Real orders will appear here when customers place them.
         </div>
       )}
       
-      <Tabs defaultValue="pending">
+      <Tabs defaultValue="pending" value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="pending" className="flex items-center justify-center">
             <Clock className="h-4 w-4 mr-2" /> 
@@ -126,27 +121,45 @@ const OrdersManagement = () => {
         </TabsList>
         
         <TabsContent value="pending" className="pt-4">
-          <OrdersTab 
-            orders={pendingOrders} 
-            emptyMessage="No pending orders right now."
-            onStatusUpdate={handleOrderStatusUpdate}
-          />
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin h-8 w-8 border-4 border-skipit-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <OrdersTab 
+              orders={pendingOrders} 
+              emptyMessage="No pending orders right now."
+              onStatusUpdate={handleOrderStatusUpdate}
+            />
+          )}
         </TabsContent>
         
         <TabsContent value="confirmed" className="pt-4">
-          <OrdersTab 
-            orders={confirmedOrders} 
-            emptyMessage="No confirmed orders right now."
-            onStatusUpdate={handleOrderStatusUpdate}
-          />
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin h-8 w-8 border-4 border-skipit-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <OrdersTab 
+              orders={confirmedOrders} 
+              emptyMessage="No confirmed orders right now."
+              onStatusUpdate={handleOrderStatusUpdate}
+            />
+          )}
         </TabsContent>
         
         <TabsContent value="history" className="pt-4">
-          <OrdersTab 
-            orders={completedOrders} 
-            emptyMessage="No order history yet."
-            onStatusUpdate={handleOrderStatusUpdate}
-          />
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin h-8 w-8 border-4 border-skipit-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <OrdersTab 
+              orders={completedOrders} 
+              emptyMessage="No order history yet."
+              onStatusUpdate={handleOrderStatusUpdate}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
