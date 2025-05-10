@@ -129,6 +129,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, userType: UserType, metadata: any = {}) => {
     try {
+      // Store credentials temporarily for auto-signin after signup
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('temp_email', email);
+        sessionStorage.setItem('temp_password', password);
+      }
+      
       // Create the user with metadata including user_type
       const { data, error } = await supabase.auth.signUp({
         email,

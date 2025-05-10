@@ -139,20 +139,8 @@ const RestaurantSignUp = () => {
           description: "Your restaurant account has been created successfully.",
         });
         
-        // Sign the user in (should be automatic from signUp, but just to be sure)
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        
-        if (signInError) {
-          console.error("Error signing in after registration:", signInError);
-          // Still navigate to success page, they can sign in from there
-          navigate("/signup-success");
-        } else {
-          // If sign in successful, redirect to restaurant dashboard
-          navigate("/restaurant-dashboard");
-        }
+        // Navigate to success page, user will be handled by SignUpSuccess component
+        navigate("/signup-success");
       } else {
         throw new Error("Failed to create user account");
       }
