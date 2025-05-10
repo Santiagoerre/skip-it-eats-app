@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -134,6 +135,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         sessionStorage.setItem('temp_password', password);
       }
       
+      console.log("Starting signup with metadata:", { userType, ...metadata });
+      
       // Create the user with metadata including user_type
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -146,11 +149,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
       
-      if (error) return { error }; // Return the error to be handled by the caller
+      if (error) {
+        console.error("Signup error:", error);
+        return { error };
+      }
       
-      // Manually create profile if sign-up was successful and we have user data
+      console.log("Signup success, user data:", data);
+      
+      // Check if the user was actually created
       if (data?.user) {
         const userId = data.user.id;
+        console.log("User created with ID:", userId);
         
         // Use setTimeout to avoid potential deadlocks
         setTimeout(async () => {
@@ -163,6 +172,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               .single();
               
             if (!existingProfile) {
+              console.log("Creating new profile for user:", userId);
               const { error: profileError } = await supabase
                 .from('profiles')
                 .insert({
@@ -190,6 +200,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (userType === 'restaurant') {
           setTimeout(async () => {
             try {
+              console.log("Creating restaurant details for:", userId, "with data:", metadata);
+              
               const { error: detailsError } = await supabase
                 .from('restaurant_details')
                 .insert({
@@ -201,10 +213,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 
               if (detailsError) {
                 console.error("Error creating restaurant details:", detailsError);
+              } else {
+                console.log("Restaurant details created successfully");
               }
               
               // Create restaurant location if address data exists
               if (metadata.address) {
+                console.log("Creating restaurant location with address:", metadata.address);
+                console.log("Coordinates:", metadata.latitude, metadata.longitude);
+                
                 const { error: locationError } = await supabase
                   .from('restaurant_locations')
                   .insert({
@@ -216,6 +233,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   
                 if (locationError) {
                   console.error("Error creating restaurant location:", locationError);
+                } else {
+                  console.log("Restaurant location created successfully");
                 }
               }
             } catch (err) {
@@ -225,14 +244,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       
-      return { data }; // Return the data to the caller
+      return { data }; 
     } catch (error: any) {
+      console.error("Error in signUp function:", error);
       toast({
         title: "Error signing up",
         description: error.message || "Please check your information and try again",
         variant: "destructive",
       });
-      return { error }; // Return the error to be handled by the caller
+      return { error }; 
     }
   };
 

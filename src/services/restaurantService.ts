@@ -50,6 +50,8 @@ export const fetchRestaurants = async (): Promise<Restaurant[]> => {
       return [];
     }
     
+    console.log("Found restaurant details:", detailsData);
+    
     // Transform data to match our interface
     return detailsData.map(item => ({
       id: item.restaurant_id,
@@ -221,6 +223,8 @@ export const updateRestaurantDetails = async (restaurantId: string, updates: Par
       console.error("Error updating restaurant details:", error);
       throw error;
     }
+    
+    console.log("Restaurant details updated successfully:", data);
     
     return {
       id: data.restaurant_id,
