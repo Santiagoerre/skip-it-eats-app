@@ -56,4 +56,3 @@ CREATE TRIGGER update_orders_updated_at
 BEFORE UPDATE ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION update_orders_updated_at();
-

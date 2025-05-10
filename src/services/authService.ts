@@ -66,7 +66,9 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       .from('profiles')
       .insert({
         id: userId,
-        user_type: userType
+        user_type: userType,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
     
     if (insertError) {
