@@ -85,7 +85,7 @@ const RestaurantSignUp = () => {
       }
       
       // Register with Supabase with additional metadata
-      const { error } = await signUp(email, password, "restaurant", { 
+      const signUpResult = await signUp(email, password, "restaurant", { 
         display_name: restaurantName,
         food_type: foodType,
         address: address,
@@ -93,8 +93,8 @@ const RestaurantSignUp = () => {
         longitude: longitude
       });
       
-      if (error) {
-        throw new Error(error.message);
+      if (signUpResult?.error) {
+        throw new Error(signUpResult.error.message);
       }
       
       // Check if the user was actually created

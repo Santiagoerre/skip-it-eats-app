@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -147,7 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
       
-      if (error) throw error;
+      if (error) return { error }; // Return the error to be handled by the caller
       
       // Manually create profile if sign-up was successful and we have user data
       if (data?.user) {
@@ -225,13 +224,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         }
       }
+      
+      return { data }; // Return the data to the caller
     } catch (error: any) {
       toast({
         title: "Error signing up",
         description: error.message || "Please check your information and try again",
         variant: "destructive",
       });
-      throw error;
+      return { error }; // Return the error to be handled by the caller
     }
   };
 
