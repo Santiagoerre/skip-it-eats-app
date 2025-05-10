@@ -94,7 +94,7 @@ const RestaurantSignUp = () => {
       });
       
       if (signUpResult?.error) {
-        throw new Error(signUpResult.error.message);
+        throw new Error(signUpResult.error.message || "Failed to create user account");
       }
       
       // Check if the user was actually created

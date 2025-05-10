@@ -12,7 +12,7 @@ interface AuthContextType {
   userType: UserType;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, userType: UserType, metadata?: any) => Promise<void>;
+  signUp: (email: string, password: string, userType: UserType, metadata?: any) => Promise<{ data?: any; error?: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
