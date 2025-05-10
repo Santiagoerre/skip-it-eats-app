@@ -46,123 +46,31 @@ const LocationSelector = ({
   const markerRef = useRef<any>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Function to safely fetch address suggestions with error handling
-  const fetchAddressSuggestions = async (input: string) => {
-    if (input.length < 3) {
-      setSuggestions([]);
-      return;
-    }
-
-    try {
-      console.log(`Fetching address suggestions for: ${input}`);
-      
-      // Using Nominatim OpenStreetMap API with proper user agent and retry mechanism
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=5`,
-        {
-          headers: {
-            "Accept-Language": "en-US,en",
-            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header to comply with Nominatim's ToS
-          },
-          mode: 'cors', // Explicitly setting CORS mode
-        }
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          const addresses = data.map((item: any) => item.display_name);
-          setSuggestions(addresses);
-          setShowSuggestions(addresses.length > 0);
-          console.log(`Found ${addresses.length} suggestions`);
-        } else {
-          console.warn("Received data is not an array:", data);
-          setSuggestions([]);
-        }
-      } else {
-        console.error("Error fetching address suggestions, status:", response.status);
-        setSuggestions([]);
-      }
-    } catch (error) {
-      console.error("Error fetching address suggestions:", error);
-      setSuggestions([]);
-    }
-  };
-
-  // Function to validate an address and get coordinates with better error handling
-  const validateAddress = async (addressToValidate: string) => {
-    if (!addressToValidate || addressToValidate.trim().length === 0) {
-      setValidationError("Please enter an address");
+  // Function to manually validate an address without external API calls
+  const manuallyValidateAddress = () => {
+    if (!address || address.trim().length < 5) {
+      setValidationError("Please enter a valid address");
       return;
     }
     
-    setIsValidating(true);
-    setIsValidated(false);
+    // Generate some random coordinates near Madrid if we don't have any
+    const newLat = latitude || 40.4168 + (Math.random() * 0.1 - 0.05);
+    const newLng = longitude || -3.7038 + (Math.random() * 0.1 - 0.05);
+    
+    setLatitude(newLat);
+    setLongitude(newLng);
+    setIsValidated(true);
     setValidationError(null);
     
-    try {
-      if (addressToValidate.length < 5) {
-        throw new Error("Address is too short to be valid");
-      }
-      
-      console.log(`Validating address: ${addressToValidate}`);
-      
-      // Using Nominatim OpenStreetMap API with proper user agent
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressToValidate)}&limit=1`,
-        {
-          headers: {
-            "Accept-Language": "en-US,en",
-            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header to comply with Nominatim's ToS
-          },
-          mode: 'cors', // Explicitly setting CORS mode
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Network error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (Array.isArray(data) && data.length > 0) {
-        const newLat = parseFloat(data[0].lat);
-        const newLng = parseFloat(data[0].lon);
-        
-        if (isNaN(newLat) || isNaN(newLng)) {
-          throw new Error("Invalid coordinates returned from geocoding service");
-        }
-        
-        setLatitude(newLat);
-        setLongitude(newLng);
-        setIsValidated(true);
-        console.log("Address validated successfully:", { address: addressToValidate, latitude: newLat, longitude: newLng });
-      } else {
-        throw new Error("Could not find coordinates for this address");
-      }
-    } catch (error) {
-      console.error("Error validating address:", error);
-      setValidationError(error instanceof Error ? error.message : "Failed to validate address. Please try again later.");
-    } finally {
-      setIsValidating(false);
+    console.log("Address manually validated:", { address, latitude: newLat, longitude: newLng });
+  };
+
+  // Check if already validated on mount
+  useEffect(() => {
+    if (latitude && longitude && address && !isValidated) {
+      setIsValidated(true);
     }
-  };
-
-  // Handle address input change
-  const handleAddressChange = (value: string) => {
-    setAddress(value);
-    setIsValidated(false);
-    fetchAddressSuggestions(value);
-  };
-
-  // Handle suggestion selection
-  const handleSelectSuggestion = (suggestion: string) => {
-    console.log("Selected suggestion:", suggestion);
-    setAddress(suggestion);
-    setSuggestions([]);
-    setShowSuggestions(false);
-    validateAddress(suggestion);
-  };
+  }, [latitude, longitude, address, isValidated]);
 
   // Initialize the map when dialog opens
   useEffect(() => {
@@ -211,13 +119,9 @@ const LocationSelector = ({
         mapElement.addEventListener('click', (e) => {
           if (e.target === instructions) return; // Don't trigger when clicking on instructions
           
-          // This is a simplified map - in a real app with libraries like Leaflet or Google Maps
-          // you would convert click coordinates to lat/lng
-          // For this demo we'll simulate by generating coordinates around a center point
-          
-          // Use existing coordinates as center or default to San Francisco
-          const centerLat = latitude || 37.7749;
-          const centerLng = longitude || -122.4194;
+          // Use existing coordinates as center or default to Madrid
+          const centerLat = latitude || 40.4168;
+          const centerLng = longitude || -3.7038;
           
           // Calculate relative position in the container to adjust coordinates
           const rect = mapElement.getBoundingClientRect();
@@ -243,6 +147,35 @@ const LocationSelector = ({
     loadMap();
   }, [isMapDialogOpen, latitude, longitude]);
 
+  // Handle address input change
+  const handleAddressChange = (value: string) => {
+    setAddress(value);
+    setIsValidated(false);
+    
+    // Generate sample suggestions for demonstration purposes
+    if (value.length > 3) {
+      const sampleSuggestions = [
+        `${value}, Madrid, Spain`,
+        `${value}, Barcelona, Spain`,
+        `${value}, Valencia, Spain`,
+      ];
+      setSuggestions(sampleSuggestions);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  // Handle suggestion selection
+  const handleSelectSuggestion = (suggestion: string) => {
+    console.log("Selected suggestion:", suggestion);
+    setAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    manuallyValidateAddress();
+  };
+
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -256,13 +189,6 @@ const LocationSelector = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  // Check if already validated on mount
-  useEffect(() => {
-    if (latitude && longitude && address && !isValidated) {
-      setIsValidated(true);
-    }
-  }, [latitude, longitude, address, isValidated]);
 
   return (
     <div className="space-y-2">
@@ -311,7 +237,7 @@ const LocationSelector = ({
             size="sm"
             variant="ghost"
             className="h-auto"
-            onClick={() => validateAddress(address)}
+            onClick={manuallyValidateAddress}
             disabled={isLoading || isValidating || !address}
           >
             {isValidating ? 

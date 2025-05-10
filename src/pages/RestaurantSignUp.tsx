@@ -84,82 +84,97 @@ const RestaurantSignUp = () => {
         sessionStorage.setItem('temp_password', password);
       }
       
-      // Register with Supabase with additional metadata
-      const signUpResult = await signUp(email, password, "restaurant", { 
+      // Prepare metadata for profile creation
+      const metadata = { 
         display_name: restaurantName,
         food_type: foodType,
         address: address,
         latitude: latitude,
         longitude: longitude
-      });
+      };
       
-      if (signUpResult?.error) {
-        throw new Error(signUpResult.error.message || "Failed to create user account");
+      console.log("Signing up with metadata:", metadata);
+      
+      // Register with Supabase with additional metadata
+      const result = await signUp(email, password, "restaurant", metadata);
+      
+      if (result?.error) {
+        console.error("Signup failed with error:", result.error);
+        throw new Error(result.error.message || "Failed to create user account");
       }
       
-      // Check if the user was actually created
-      const { data: { user } } = await supabase.auth.getUser();
+      if (!result?.data?.user) {
+        throw new Error("User account could not be created");
+      }
       
-      if (user) {
-        console.log("User created with ID:", user.id);
+      // User has been created successfully
+      console.log("User created with ID:", result.data.user.id);
+      
+      // If we have an image file, upload it
+      if (imageFile && result.data.user) {
+        const userId = result.data.user.id;
+        const fileName = `${userId}/profile`;
         
-        // Explicitly ensure profile exists
-        await ensureUserProfile(user.id, "restaurant");
+        console.log("Uploading image for user:", userId);
         
-        // If we have a user and image file, upload it
-        if (imageFile) {
-          const fileName = `${user.id}/profile`;
-          const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
+          .from('restaurant-images')
+          .upload(fileName, imageFile, {
+            upsert: true
+          });
+        
+        if (uploadError) {
+          console.error("Error uploading image:", uploadError);
+          // Non-blocking error - we'll still proceed with account creation
+          toast({
+            title: "Image upload failed",
+            description: "Your account was created, but we couldn't upload your image. You can add it later.",
+            variant: "destructive",
+          });
+        } else {
+          console.log("Image uploaded successfully");
+          // Get the public URL for the uploaded image
+          const { data: publicUrlData } = supabase
+            .storage
             .from('restaurant-images')
-            .upload(fileName, imageFile, {
-              upsert: true
-            });
-          
-          if (uploadError) {
-            console.error("Error uploading image:", uploadError);
-            // Non-blocking error - we'll still proceed with account creation
-            toast({
-              title: "Image upload failed",
-              description: "Your account was created, but we couldn't upload your image. You can add it later.",
-              variant: "destructive",
-            });
-          } else {
-            // Get the public URL for the uploaded image
-            const { data: publicUrlData } = supabase
-              .storage
-              .from('restaurant-images')
-              .getPublicUrl(fileName);
-              
-            // Update restaurant details with the image URL
-            if (publicUrlData?.publicUrl) {
+            .getPublicUrl(fileName);
+            
+          // Update restaurant details with the image URL
+          if (publicUrlData?.publicUrl) {
+            try {
               const { error: detailsError } = await supabase
                 .from('restaurant_details')
                 .update({ image_url: publicUrlData.publicUrl })
-                .eq('restaurant_id', user.id);
+                .eq('restaurant_id', userId);
                 
               if (detailsError) {
                 console.error("Error updating restaurant image URL:", detailsError);
+              } else {
+                console.log("Restaurant image URL updated successfully");
               }
+            } catch (updateError) {
+              console.error("Error updating image URL:", updateError);
             }
           }
         }
-        
-        toast({
-          title: "Restaurant account created!",
-          description: "Your restaurant account has been created successfully.",
-        });
-        
-        // Navigate to success page, user will be handled by SignUpSuccess component
-        navigate("/signup-success");
-      } else {
-        throw new Error("Failed to create user account");
       }
+      
+      toast({
+        title: "Restaurant account created!",
+        description: "Your restaurant account has been created successfully.",
+      });
+      
+      // Navigate to success page, user will be handled by SignUpSuccess component
+      navigate("/signup-success");
+      
     } catch (error: any) {
       console.error("Restaurant signup error:", error);
       
       // Clear temporary credentials on error
-      sessionStorage.removeItem('temp_email');
-      sessionStorage.removeItem('temp_password');
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('temp_email');
+        sessionStorage.removeItem('temp_password');
+      }
       
       toast({
         title: "Sign Up Failed",

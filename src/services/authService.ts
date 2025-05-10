@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Function to get the current session
@@ -20,9 +21,11 @@ export const signOut = async () => {
   }
 }
 
-// Function to ensure user profile exists
+// Function to ensure user profile exists with direct database operations
 export const ensureUserProfile = async (userId: string, userType: 'customer' | 'restaurant'): Promise<boolean> => {
   try {
+    console.log("Ensuring user profile exists for:", userId, "with type:", userType);
+    
     // First check if the profile already exists
     const { data: existingProfile, error: fetchError } = await supabase
       .from('profiles')
@@ -30,11 +33,9 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       .eq('id', userId)
       .maybeSingle();
     
-    console.log("ensureUserProfile check:", { existingProfile, fetchError, userId, userType });
-    
-    if (fetchError && fetchError.code !== 'PGRST116') {
+    if (fetchError) {
       console.error('Error checking for existing profile:', fetchError);
-      throw fetchError;
+      // Continue the process even if we couldn't check for existing profile
     }
     
     // If profile exists with the correct user type, return true
@@ -53,7 +54,7 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       
       if (updateError) {
         console.error('Error updating profile:', updateError);
-        throw updateError;
+        return false;
       }
       
       return true;
@@ -70,10 +71,30 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     
     if (insertError) {
       console.error('Error creating profile:', insertError);
-      throw insertError;
+      return false;
     }
     
     console.log('Profile created successfully');
+    
+    // If restaurant, create default restaurant details
+    if (userType === 'restaurant') {
+      const { error: detailsError } = await supabase
+        .from('restaurant_details')
+        .insert({
+          restaurant_id: userId,
+          name: 'New Restaurant',
+          cuisine: 'Not specified',
+          price_range: '$'
+        });
+      
+      if (detailsError) {
+        console.error('Error creating restaurant details:', detailsError);
+        // Continue even if restaurant details creation fails
+      } else {
+        console.log('Restaurant details created successfully');
+      }
+    }
+    
     return true;
   } catch (error) {
     console.error('Error in ensureUserProfile:', error);
