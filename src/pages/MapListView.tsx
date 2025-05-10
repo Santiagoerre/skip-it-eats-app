@@ -25,8 +25,6 @@ import MapView from "@/components/MapView";
 import { 
   fetchRestaurants, 
   Restaurant, 
-  calculateDistance, 
-  formatDistance, 
   fetchRestaurantLocation 
 } from "@/services/restaurantService";
 import { useQuery } from "@tanstack/react-query";
@@ -50,7 +48,7 @@ const MapListView = () => {
       try {
         const data = await fetchRestaurants();
         
-        // Get user location if available
+        // Get user location if available, but don't use it for distance filtering
         if (navigator.geolocation) {
           return new Promise<Restaurant[]>((resolve) => {
             navigator.geolocation.getCurrentPosition(
@@ -59,35 +57,20 @@ const MapListView = () => {
                 const userLon = position.coords.longitude;
                 setUserLocation({ latitude: userLat, longitude: userLon });
                 
-                // Add distance to each restaurant
-                const restaurantsWithDistance = await Promise.all(
+                // Add location data to restaurants (without distance filtering)
+                const restaurantsWithLocation = await Promise.all(
                   data.map(async (restaurant) => {
                     const location = await fetchRestaurantLocation(restaurant.id);
-                    if (location && location.latitude && location.longitude) {
-                      const distance = calculateDistance(
-                        userLat, userLon,
-                        location.latitude, location.longitude
-                      );
+                    if (location) {
                       return {
                         ...restaurant,
-                        distance: formatDistance(distance),
-                        distanceValue: distance * 0.621371 // km to miles
                       };
                     }
-                    return {
-                      ...restaurant,
-                      distance: 'Unknown',
-                      distanceValue: Infinity
-                    };
+                    return restaurant;
                   })
                 );
                 
-                // Sort by distance
-                restaurantsWithDistance.sort((a, b) => {
-                  return (a.distanceValue || Infinity) - (b.distanceValue || Infinity);
-                });
-                
-                resolve(restaurantsWithDistance);
+                resolve(restaurantsWithLocation);
               },
               (error) => {
                 console.error('Error getting user location:', error);

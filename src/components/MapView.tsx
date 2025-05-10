@@ -123,13 +123,23 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     const mapContainer = mapRef.current;
     mapContainer.innerHTML = '';
     
-    // Create map wrapper
+    // Create map wrapper with a proper background
     const mapWrapper = document.createElement('div');
     mapWrapper.className = 'relative bg-gray-100 rounded-lg w-full h-full overflow-hidden';
     
     // Create map UI
     const mapUI = document.createElement('div');
     mapUI.className = 'absolute inset-0 p-4';
+    
+    // Add a simple grid to represent the map (better visual)
+    const grid = document.createElement('div');
+    grid.className = 'absolute inset-0 grid grid-cols-10 grid-rows-10 z-0';
+    for (let i = 0; i < 100; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'border border-gray-200 opacity-20';
+      grid.appendChild(cell);
+    }
+    mapUI.appendChild(grid);
     
     // Add restaurant markers
     restaurants.forEach(restaurant => {
@@ -138,19 +148,22 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         return;
       }
       
-      // Normalize coordinates to fit our container (simplified mapping)
+      // Normalize coordinates to fit our container
+      // We'll use a simple mapping to place markers on our grid
       const x = ((restaurant.longitude + 180) / 360) * 100;
       const y = ((90 - restaurant.latitude) / 180) * 100;
       
       console.log(`Adding marker for ${restaurant.name} at position:`, { x, y, lat: restaurant.latitude, lng: restaurant.longitude });
       
+      // Create marker element
       const marker = document.createElement('div');
       marker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10';
       marker.style.left = `${x}%`;
       marker.style.top = `${y}%`;
       
+      // Create pin element
       const pin = document.createElement('div');
-      pin.className = 'bg-skipit-primary text-white p-1 rounded-full hover:bg-skipit-primary-dark transition-colors';
+      pin.className = 'bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors';
       pin.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
       
       marker.appendChild(pin);
@@ -197,18 +210,26 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       userPin.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle></svg>`;
       
       userMarker.appendChild(userPin);
+      
+      // Add user tooltip
+      const userTooltip = document.createElement('div');
+      userTooltip.className = 'absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white p-2 rounded shadow-md text-xs whitespace-nowrap opacity-0 pointer-events-none transition-opacity z-20';
+      userTooltip.textContent = "Your location";
+      userMarker.appendChild(userTooltip);
+      
+      // Show tooltip on hover
+      userMarker.addEventListener('mouseenter', () => {
+        userTooltip.classList.remove('opacity-0');
+        userTooltip.classList.add('opacity-100');
+      });
+      
+      userMarker.addEventListener('mouseleave', () => {
+        userTooltip.classList.remove('opacity-100');
+        userTooltip.classList.add('opacity-0');
+      });
+      
       mapUI.appendChild(userMarker);
     }
-    
-    // Add a simple grid to represent the map (since we can't use real map libraries)
-    const grid = document.createElement('div');
-    grid.className = 'absolute inset-0 grid grid-cols-10 grid-rows-10 z-0';
-    for (let i = 0; i < 100; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'border border-gray-200 opacity-10';
-      grid.appendChild(cell);
-    }
-    mapUI.appendChild(grid);
     
     mapWrapper.appendChild(mapUI);
     mapContainer.appendChild(mapWrapper);
@@ -219,7 +240,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     disclaimer.textContent = 'Map View (Simplified)';
     mapWrapper.appendChild(disclaimer);
     
-    // Add pulse animation style
+    // Add pulse animation style for user location
     const style = document.createElement('style');
     style.textContent = `
       .pulseAnimation {
@@ -250,9 +271,6 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         title: "Map Centered",
         description: "Map centered on your current location",
       });
-      
-      // In a real app with a proper map library, we would do actual panning/zooming here
-      // For now we'll just refresh the map to re-render with the user at center
       renderMap();
     }
   };

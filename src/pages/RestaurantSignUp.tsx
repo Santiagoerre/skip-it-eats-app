@@ -15,7 +15,7 @@ import { ensureUserProfile } from "@/services/authService";
 const RestaurantSignUp = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signUp } = useAuth();
+  const { signUp, session } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -28,12 +28,19 @@ const RestaurantSignUp = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { errors, validateEmailAndPassword, validateLocationData, resetErrors } = useFormValidation();
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (session) {
+      navigate("/restaurant-dashboard");
+    }
+  }, [session, navigate]);
+  
   // Reset errors when component unmounts
   useEffect(() => {
     return () => {
       resetErrors();
     };
-  }, []);
+  }, [resetErrors]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,7 +139,20 @@ const RestaurantSignUp = () => {
           description: "Your restaurant account has been created successfully.",
         });
         
-        navigate("/signup-success");
+        // Sign the user in (should be automatic from signUp, but just to be sure)
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        
+        if (signInError) {
+          console.error("Error signing in after registration:", signInError);
+          // Still navigate to success page, they can sign in from there
+          navigate("/signup-success");
+        } else {
+          // If sign in successful, redirect to restaurant dashboard
+          navigate("/restaurant-dashboard");
+        }
       } else {
         throw new Error("Failed to create user account");
       }

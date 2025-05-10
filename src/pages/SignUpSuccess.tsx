@@ -20,11 +20,15 @@ const SignUpSuccess = () => {
     
     // If user is already logged in, redirect to the appropriate dashboard
     if (session) {
-      if (userType === 'restaurant') {
-        navigate("/restaurant-dashboard");
-      } else if (userType === 'customer') {
-        navigate("/app");
-      }
+      const timer = setTimeout(() => {
+        if (userType === 'restaurant') {
+          navigate("/restaurant-dashboard");
+        } else if (userType === 'customer') {
+          navigate("/app");
+        }
+      }, 1500); // Brief delay to show the success message
+      
+      return () => clearTimeout(timer);
     }
   }, [toast, session, userType, navigate]);
 

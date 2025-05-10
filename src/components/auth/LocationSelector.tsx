@@ -42,6 +42,8 @@ const LocationSelector = ({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isMapDialogOpen, setIsMapDialogOpen] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
   // Function to get address suggestions based on input
   const fetchAddressSuggestions = async (input: string) => {
@@ -65,6 +67,7 @@ const LocationSelector = ({
         const data = await response.json();
         const addresses = data.map((item: any) => item.display_name);
         setSuggestions(addresses);
+        setShowSuggestions(true);
       } else {
         console.error("Error fetching address suggestions");
         setSuggestions([]);
@@ -126,7 +129,6 @@ const LocationSelector = ({
     setAddress(value);
     setIsValidated(false);
     fetchAddressSuggestions(value);
-    setShowSuggestions(true);
   };
 
   // Handle suggestion selection
@@ -141,75 +143,88 @@ const LocationSelector = ({
   useEffect(() => {
     if (!isMapDialogOpen || !mapContainerRef.current) return;
 
-    const initMap = async () => {
+    const loadMap = async () => {
       try {
-        // Create a simple map interface
         const mapContainer = mapContainerRef.current;
+        if (!mapContainer) return;
+        
+        // Clear previous content
         mapContainer.innerHTML = '';
         
-        // Create a div that represents the map
-        const mapDiv = document.createElement('div');
-        mapDiv.className = 'relative w-full h-full bg-gray-100 overflow-hidden';
+        // Create map container
+        const mapElement = document.createElement('div');
+        mapElement.className = 'w-full h-full bg-gray-100 relative';
+        mapContainer.appendChild(mapElement);
         
-        // If we have coordinates, show them
+        // If we have coordinates, show a marker
         if (latitude && longitude) {
           const marker = document.createElement('div');
           marker.className = 'absolute z-10 transform -translate-x-1/2 -translate-y-1/2';
           marker.style.left = '50%';
           marker.style.top = '50%';
-          marker.innerHTML = `<svg class="text-red-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
-          mapDiv.appendChild(marker);
+          marker.innerHTML = `<svg class="h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>`;
           
-          const coordinates = document.createElement('div');
-          coordinates.className = 'absolute bottom-2 left-2 bg-white p-2 rounded text-xs';
-          coordinates.textContent = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
-          mapDiv.appendChild(coordinates);
+          mapElement.appendChild(marker);
+          
+          // Show coordinates
+          const coordInfo = document.createElement('div');
+          coordInfo.className = 'absolute bottom-2 left-2 bg-white p-2 rounded shadow-sm text-xs';
+          coordInfo.textContent = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+          mapElement.appendChild(coordInfo);
         }
         
-        // Add instructions
+        // Create a simple instructions overlay
         const instructions = document.createElement('div');
-        instructions.className = 'absolute top-2 left-2 right-2 bg-white p-2 rounded text-sm text-center';
-        instructions.textContent = 'Click anywhere on the map to set your restaurant location';
-        mapDiv.appendChild(instructions);
+        instructions.className = 'absolute top-2 left-2 right-2 bg-white p-2 rounded text-center text-sm';
+        instructions.textContent = 'Click anywhere on the map to set your location';
+        mapElement.appendChild(instructions);
         
-        // Add event listener for clicks
-        mapDiv.addEventListener('click', (e) => {
-          // This is a simplified version without a real map
-          // In a real implementation, you would convert click coordinates to lat/lng
+        // Handle click on map
+        mapElement.addEventListener('click', (e) => {
+          if (e.target === instructions) return; // Don't trigger when clicking on instructions
           
-          // For demo purposes, we'll generate coordinates near the center of the map
-          // with a small random offset to simulate different locations
-          const baseLatitude = 37.7749; // San Francisco as a base
-          const baseLongitude = -122.4194;
+          // This is a simplified map - in a real app with libraries like Leaflet or Google Maps
+          // you would convert click coordinates to lat/lng
+          // For this demo we'll simulate by generating coordinates around a center point
           
-          // Create a random offset
-          const latOffset = (Math.random() - 0.5) * 0.1;
-          const lngOffset = (Math.random() - 0.5) * 0.1;
+          // Use existing coordinates as center or default to San Francisco
+          const centerLat = latitude || 37.7749;
+          const centerLng = longitude || -122.4194;
           
-          const newLat = baseLatitude + latOffset;
-          const newLng = baseLongitude + lngOffset;
+          // Calculate relative position in the container to adjust coordinates
+          const rect = mapElement.getBoundingClientRect();
+          const relX = (e.clientX - rect.left) / rect.width - 0.5; // -0.5 to 0.5
+          const relY = (e.clientY - rect.top) / rect.height - 0.5; // -0.5 to 0.5
+          
+          // Generate new coordinates (simulate a real map)
+          const newLat = centerLat - relY * 0.2; // Increase multiplier for bigger coordinate changes
+          const newLng = centerLng + relX * 0.4;
           
           setLatitude(newLat);
           setLongitude(newLng);
           setIsValidated(true);
           
-          // Update the display with new marker
-          initMap();
+          // Reload the map with new marker
+          loadMap();
         });
-        
-        mapContainer.appendChild(mapDiv);
       } catch (error) {
-        console.error("Error initializing map:", error);
+        console.error("Error loading map:", error);
       }
     };
     
-    initMap();
+    loadMap();
   }, [isMapDialogOpen, latitude, longitude]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      setShowSuggestions(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.suggestions-container')) {
+        setShowSuggestions(false);
+      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
@@ -218,10 +233,17 @@ const LocationSelector = ({
     };
   }, []);
 
+  // Check if already validated on mount
+  useEffect(() => {
+    if (latitude && longitude && address && !isValidated) {
+      setIsValidated(true);
+    }
+  }, []);
+
   return (
     <div className="space-y-2">
       <Label htmlFor="address">Restaurant Address (Required)</Label>
-      <div className="relative">
+      <div className="relative suggestions-container">
         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
           id="address"
@@ -279,7 +301,7 @@ const LocationSelector = ({
         {/* Address suggestions dropdown */}
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
-            <ul className="py-1">
+            <ul className="py-1 max-h-60 overflow-auto">
               {suggestions.map((suggestion, index) => (
                 <li 
                   key={index}
