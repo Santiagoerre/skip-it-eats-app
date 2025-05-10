@@ -28,6 +28,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const { toast } = useToast();
   const [mapError, setMapError] = useState<string | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
+  const [mapInitialized, setMapInitialized] = useState(false);
 
   // Fetch restaurants with React Query
   const { data: restaurants = [], isLoading, error } = useQuery({
@@ -98,7 +99,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
 
   // Initialize map after data is loaded
   useEffect(() => {
-    if (isLoading || !mapRef.current) {
+    if (isLoading || !mapRef.current || mapInitialized) {
       return;
     }
 
@@ -107,6 +108,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       setIsMapLoading(false);
       try {
         renderMap();
+        setMapInitialized(true);
       } catch (error) {
         console.error('Error initializing map:', error);
         setMapError('Unable to initialize map. Please try again later.');
@@ -114,7 +116,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [isLoading, restaurants, userLocation]);
+  }, [isLoading, restaurants, userLocation, mapInitialized]);
 
   const renderMap = () => {
     if (!mapRef.current) return;
@@ -275,6 +277,17 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     }
   };
 
+  // Refresh map data
+  const refreshMap = () => {
+    setMapInitialized(false);
+    setIsMapLoading(true);
+    renderMap();
+    toast({
+      title: "Map Refreshed",
+      description: "Map data has been refreshed",
+    });
+  };
+
   if (isLoading || isMapLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-lg">
@@ -292,7 +305,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         <MapPin className="h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium mb-2">Map Error</h3>
         <p className="text-muted-foreground text-sm mb-4">{mapError}</p>
-        <Button onClick={() => window.location.reload()}>Reload Map</Button>
+        <Button onClick={refreshMap}>Reload Map</Button>
       </div>
     );
   }
@@ -310,16 +323,25 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   return (
     <div className="relative w-full h-full">
       <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden" />
-      {userLocation && (
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
+        {userLocation && (
+          <Button 
+            size="sm" 
+            className="flex items-center gap-2"
+            onClick={centerOnUserLocation}
+          >
+            <Navigation className="h-4 w-4" />
+            <span>Center on me</span>
+          </Button>
+        )}
         <Button 
           size="sm" 
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-2"
-          onClick={centerOnUserLocation}
+          variant="outline"
+          onClick={refreshMap}
         >
-          <Navigation className="h-4 w-4" />
-          <span>Center on me</span>
+          Refresh Map
         </Button>
-      )}
+      </div>
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ const LocationForm = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isMapDialogOpen, setIsMapDialogOpen] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Function to get address suggestions with improved error handling
   const fetchAddressSuggestions = async (input: string) => {
@@ -65,7 +67,8 @@ const LocationForm = ({
         if (Array.isArray(data)) {
           const addresses = data.map((item: any) => item.display_name);
           setSuggestions(addresses);
-          setShowSuggestions(true);
+          setShowSuggestions(addresses.length > 0);
+          console.log(`Found ${addresses.length} suggestions`);
         } else {
           console.warn("Received data is not an array:", data);
           setSuggestions([]);
@@ -150,6 +153,7 @@ const LocationForm = ({
 
   // Handle suggestion selection
   const handleSelectSuggestion = (suggestion: string) => {
+    console.log("Selected suggestion:", suggestion);
     onAddressChange(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -160,8 +164,7 @@ const LocationForm = ({
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.suggestions-container')) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
       }
     };
@@ -258,7 +261,7 @@ const LocationForm = ({
     if (location?.latitude && location?.longitude && !isValidated) {
       setIsValidated(true);
     }
-  }, [location]);
+  }, [location, isValidated]);
 
   return (
     <Card>
@@ -270,13 +273,14 @@ const LocationForm = ({
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="address">Address</Label>
-          <div className="relative suggestions-container">
+          <div className="relative" ref={suggestionsRef}>
             <Input 
               id="address" 
               value={address} 
               onChange={(e) => handleAddressChange(e.target.value)}
               placeholder="Full restaurant address"
               className={validationError ? "border-red-500" : ""}
+              autoComplete="off"
             />
             
             {/* Address suggestions dropdown - Now clickable */}

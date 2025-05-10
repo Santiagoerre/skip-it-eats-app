@@ -85,13 +85,17 @@ const RestaurantSignUp = () => {
       }
       
       // Register with Supabase with additional metadata
-      await signUp(email, password, "restaurant", { 
+      const { error } = await signUp(email, password, "restaurant", { 
         display_name: restaurantName,
         food_type: foodType,
         address: address,
         latitude: latitude,
         longitude: longitude
       });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
       
       // Check if the user was actually created
       const { data: { user } } = await supabase.auth.getUser();

@@ -44,6 +44,7 @@ const LocationSelector = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Function to safely fetch address suggestions with error handling
   const fetchAddressSuggestions = async (input: string) => {
@@ -72,7 +73,7 @@ const LocationSelector = ({
         if (Array.isArray(data)) {
           const addresses = data.map((item: any) => item.display_name);
           setSuggestions(addresses);
-          setShowSuggestions(true);
+          setShowSuggestions(addresses.length > 0);
           console.log(`Found ${addresses.length} suggestions`);
         } else {
           console.warn("Received data is not an array:", data);
@@ -156,6 +157,7 @@ const LocationSelector = ({
 
   // Handle suggestion selection
   const handleSelectSuggestion = (suggestion: string) => {
+    console.log("Selected suggestion:", suggestion);
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -244,8 +246,7 @@ const LocationSelector = ({
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.suggestions-container')) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
       }
     };
@@ -261,12 +262,12 @@ const LocationSelector = ({
     if (latitude && longitude && address && !isValidated) {
       setIsValidated(true);
     }
-  }, []);
+  }, [latitude, longitude, address, isValidated]);
 
   return (
     <div className="space-y-2">
       <Label htmlFor="address">Restaurant Address (Required)</Label>
-      <div className="relative suggestions-container">
+      <div className="relative" ref={suggestionsRef}>
         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
           id="address"
@@ -275,6 +276,7 @@ const LocationSelector = ({
           placeholder="Enter your restaurant's address"
           className={`pl-10 ${error || validationError ? "border-red-500" : ""}`}
           disabled={isLoading || isValidating}
+          autoComplete="off"
         />
         
         {/* Validate button */}
