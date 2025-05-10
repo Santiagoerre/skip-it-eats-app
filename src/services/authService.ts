@@ -35,7 +35,7 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     
     if (fetchError) {
       console.error('Error checking for existing profile:', fetchError);
-      // Continue the process even if we couldn't check for existing profile
+      return false;
     }
     
     // If profile exists with the correct user type, return true
@@ -76,22 +76,38 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     
     console.log('Profile created successfully');
     
-    // If restaurant, create default restaurant details
+    // If restaurant, create default restaurant details if they don't exist
     if (userType === 'restaurant') {
-      const { error: detailsError } = await supabase
+      // First check if restaurant details already exist
+      const { data: existingDetails, error: detailsCheckError } = await supabase
         .from('restaurant_details')
-        .insert({
-          restaurant_id: userId,
-          name: 'New Restaurant',
-          cuisine: 'Not specified',
-          price_range: '$'
-        });
+        .select('id')
+        .eq('restaurant_id', userId)
+        .maybeSingle();
       
-      if (detailsError) {
-        console.error('Error creating restaurant details:', detailsError);
-        // Continue even if restaurant details creation fails
+      if (detailsCheckError) {
+        console.error('Error checking for existing restaurant details:', detailsCheckError);
+      }
+      
+      // If restaurant details don't exist, create them
+      if (!existingDetails) {
+        console.log('Creating default restaurant details');
+        const { error: detailsError } = await supabase
+          .from('restaurant_details')
+          .insert({
+            restaurant_id: userId,
+            name: 'New Restaurant',
+            cuisine: 'Not specified',
+            price_range: '$'
+          });
+        
+        if (detailsError) {
+          console.error('Error creating restaurant details:', detailsError);
+        } else {
+          console.log('Restaurant details created successfully');
+        }
       } else {
-        console.log('Restaurant details created successfully');
+        console.log('Restaurant details already exist');
       }
     }
     

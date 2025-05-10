@@ -86,6 +86,7 @@ const RestaurantSignUp = () => {
       
       // Prepare metadata for profile creation
       const metadata = { 
+        user_type: "restaurant",
         display_name: restaurantName,
         food_type: foodType,
         address: address,
@@ -96,23 +97,83 @@ const RestaurantSignUp = () => {
       console.log("Signing up with metadata:", metadata);
       
       // Register with Supabase with additional metadata
-      const result = await signUp(email, password, "restaurant", metadata);
+      const { data, error } = await signUp(email, password, "restaurant", metadata);
       
-      if (result?.error) {
-        console.error("Signup failed with error:", result.error);
-        throw new Error(result.error.message || "Failed to create user account");
+      if (error) {
+        console.error("Signup failed with error:", error);
+        throw new Error(error.message || "Failed to create user account");
       }
       
-      if (!result?.data?.user) {
+      if (!data?.user) {
         throw new Error("User account could not be created");
       }
       
       // User has been created successfully
-      console.log("User created with ID:", result.data.user.id);
+      const userId = data.user.id;
+      console.log("User created with ID:", userId);
+      
+      // Ensure profile exists
+      const profileCreated = await ensureUserProfile(userId, "restaurant");
+      if (!profileCreated) {
+        console.warn("Could not create or update profile. Attempting to continue anyway.");
+      }
+      
+      // Create restaurant location directly (not relying on the trigger)
+      if (address && latitude !== 0 && longitude !== 0) {
+        try {
+          console.log("Creating restaurant location with address:", address);
+          const { error: locationError } = await supabase
+            .from('restaurant_locations')
+            .insert({
+              restaurant_id: userId,
+              address: address,
+              latitude: latitude,
+              longitude: longitude
+            });
+            
+          if (locationError) {
+            console.error("Error creating restaurant location:", locationError);
+            toast({
+              title: "Location Error",
+              description: "Your account was created, but we couldn't save your location.",
+              variant: "destructive",
+            });
+          } else {
+            console.log("Restaurant location created successfully");
+          }
+        } catch (locationError) {
+          console.error("Exception creating location:", locationError);
+        }
+      }
+      
+      // Create or update restaurant details
+      try {
+        console.log("Creating/updating restaurant details");
+        const { error: detailsError } = await supabase
+          .from('restaurant_details')
+          .upsert({
+            restaurant_id: userId,
+            name: restaurantName,
+            cuisine: foodType,
+            price_range: '$'
+          });
+          
+        if (detailsError) {
+          console.error("Error updating restaurant details:", detailsError);
+          toast({
+            title: "Details Error",
+            description: "Your account was created, but we couldn't save all your restaurant details.",
+            variant: "destructive",
+          });
+        } else {
+          console.log("Restaurant details created/updated successfully");
+        }
+      } catch (detailsError) {
+        console.error("Exception updating details:", detailsError);
+      }
       
       // If we have an image file, upload it
-      if (imageFile && result.data.user) {
-        const userId = result.data.user.id;
+      if (imageFile) {
         const fileName = `${userId}/profile`;
         
         console.log("Uploading image for user:", userId);
