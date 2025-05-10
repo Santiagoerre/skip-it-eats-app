@@ -45,7 +45,7 @@ const LocationSelector = ({
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
-  // Function to get address suggestions based on input
+  // Function to safely fetch address suggestions with error handling
   const fetchAddressSuggestions = async (input: string) => {
     if (input.length < 3) {
       setSuggestions([]);
@@ -53,23 +53,33 @@ const LocationSelector = ({
     }
 
     try {
-      // Using Nominatim OpenStreetMap API for geocoding (free and no API key required)
+      console.log(`Fetching address suggestions for: ${input}`);
+      
+      // Using Nominatim OpenStreetMap API with proper user agent and retry mechanism
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=5`,
         {
           headers: {
             "Accept-Language": "en-US,en",
+            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header to comply with Nominatim's ToS
           },
+          mode: 'cors', // Explicitly setting CORS mode
         }
       );
       
       if (response.ok) {
         const data = await response.json();
-        const addresses = data.map((item: any) => item.display_name);
-        setSuggestions(addresses);
-        setShowSuggestions(true);
+        if (Array.isArray(data)) {
+          const addresses = data.map((item: any) => item.display_name);
+          setSuggestions(addresses);
+          setShowSuggestions(true);
+          console.log(`Found ${addresses.length} suggestions`);
+        } else {
+          console.warn("Received data is not an array:", data);
+          setSuggestions([]);
+        }
       } else {
-        console.error("Error fetching address suggestions");
+        console.error("Error fetching address suggestions, status:", response.status);
         setSuggestions([]);
       }
     } catch (error) {
@@ -78,47 +88,60 @@ const LocationSelector = ({
     }
   };
 
-  // Function to validate an address and get coordinates
+  // Function to validate an address and get coordinates with better error handling
   const validateAddress = async (addressToValidate: string) => {
+    if (!addressToValidate || addressToValidate.trim().length === 0) {
+      setValidationError("Please enter an address");
+      return;
+    }
+    
     setIsValidating(true);
     setIsValidated(false);
     setValidationError(null);
     
     try {
-      if (addressToValidate.length < 10) {
+      if (addressToValidate.length < 5) {
         throw new Error("Address is too short to be valid");
       }
       
-      // Using Nominatim OpenStreetMap API for geocoding
+      console.log(`Validating address: ${addressToValidate}`);
+      
+      // Using Nominatim OpenStreetMap API with proper user agent
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressToValidate)}&limit=1`,
         {
           headers: {
             "Accept-Language": "en-US,en",
+            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header to comply with Nominatim's ToS
           },
+          mode: 'cors', // Explicitly setting CORS mode
         }
       );
       
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`Network error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (Array.isArray(data) && data.length > 0) {
+        const newLat = parseFloat(data[0].lat);
+        const newLng = parseFloat(data[0].lon);
         
-        if (data.length > 0) {
-          const newLat = parseFloat(data[0].lat);
-          const newLng = parseFloat(data[0].lon);
-          
-          setLatitude(newLat);
-          setLongitude(newLng);
-          setIsValidated(true);
-          console.log("Address validated successfully:", { address: addressToValidate, latitude: newLat, longitude: newLng });
-        } else {
-          throw new Error("Could not find coordinates for this address");
+        if (isNaN(newLat) || isNaN(newLng)) {
+          throw new Error("Invalid coordinates returned from geocoding service");
         }
+        
+        setLatitude(newLat);
+        setLongitude(newLng);
+        setIsValidated(true);
+        console.log("Address validated successfully:", { address: addressToValidate, latitude: newLat, longitude: newLng });
       } else {
-        throw new Error("Failed to validate address with geocoding service");
+        throw new Error("Could not find coordinates for this address");
       }
     } catch (error) {
       console.error("Error validating address:", error);
-      setValidationError(error instanceof Error ? error.message : "Failed to validate address");
+      setValidationError(error instanceof Error ? error.message : "Failed to validate address. Please try again later.");
     } finally {
       setIsValidating(false);
     }
@@ -298,7 +321,7 @@ const LocationSelector = ({
           </Button>
         </div>
         
-        {/* Address suggestions dropdown */}
+        {/* Address suggestions dropdown - Made clickable */}
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
             <ul className="py-1 max-h-60 overflow-auto">

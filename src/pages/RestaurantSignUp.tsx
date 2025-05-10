@@ -78,6 +78,12 @@ const RestaurantSignUp = () => {
     try {
       console.log("Starting restaurant signup process with coordinates:", { latitude, longitude });
       
+      // Store credentials temporarily for auto-signin after signup
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('temp_email', email);
+        sessionStorage.setItem('temp_password', password);
+      }
+      
       // Register with Supabase with additional metadata
       await signUp(email, password, "restaurant", { 
         display_name: restaurantName,
@@ -146,6 +152,11 @@ const RestaurantSignUp = () => {
       }
     } catch (error: any) {
       console.error("Restaurant signup error:", error);
+      
+      // Clear temporary credentials on error
+      sessionStorage.removeItem('temp_email');
+      sessionStorage.removeItem('temp_password');
+      
       toast({
         title: "Sign Up Failed",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
