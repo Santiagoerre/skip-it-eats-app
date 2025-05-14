@@ -27,7 +27,7 @@ export const useRestaurantSignUp = () => {
   // Mark this as a new signup flow
   markAsNewSignupFlow();
 
-  // Verify restaurant profile creation with improved error handling
+  // Verify restaurant profile creation with improved error handling and exponential backoff
   const verifyRestaurantProfileCreation = async (userId: string): Promise<boolean> => {
     console.log("Verifying restaurant profile creation for:", userId);
     
@@ -65,6 +65,9 @@ export const useRestaurantSignUp = () => {
             return false;
           }
           
+          // Wait a moment for the database to process
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           console.log("Manually created profile for user:", userId);
         } catch (createError) {
           console.error("Error during manual profile creation:", createError);
@@ -98,6 +101,9 @@ export const useRestaurantSignUp = () => {
       } else {
         console.log("Profile exists and has correct type:", profileData);
       }
+      
+      // Wait after profile operation
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Check if restaurant details exist
       const { data: detailsData, error: detailsError } = await supabase
@@ -139,6 +145,9 @@ export const useRestaurantSignUp = () => {
       } else {
         console.log("Restaurant details found:", detailsData);
       }
+      
+      // Wait after details operation
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Check if location exists if address was provided
       if (address) {
@@ -253,6 +262,10 @@ export const useRestaurantSignUp = () => {
     try {
       setIsLoading(true);
       
+      // Store current signup state in sessionStorage to persist across redirects
+      sessionStorage.setItem('temp_email', email);
+      sessionStorage.setItem('temp_password', password);
+      
       // Prepare metadata for profile creation
       const metadata = { 
         user_type: "restaurant",
@@ -280,6 +293,9 @@ export const useRestaurantSignUp = () => {
       
       console.log("Restaurant account created successfully:", data.user.id);
       
+      // Store new user ID in session storage for the success page
+      sessionStorage.setItem('new_user_id', data.user.id);
+      
       // Verify that restaurant profile was created successfully with exponential backoff
       const verifyWithBackoff = async (attempts = 5, initialDelay = 1000): Promise<boolean> => {
         let delay = initialDelay;
@@ -295,7 +311,7 @@ export const useRestaurantSignUp = () => {
           
           console.log(`Verification attempt ${i + 1} failed, waiting ${delay}ms before retrying`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          delay = Math.min(delay * 1.5, 10000); // Cap at 10 seconds
+          delay = Math.min(delay * 2, 10000); // Cap at 10 seconds
         }
         
         console.error("All verification attempts failed");

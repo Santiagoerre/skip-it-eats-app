@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Loader2 } from "lucide-react";
@@ -17,11 +18,13 @@ const SignUpSuccess = () => {
   const [password, setPassword] = useState<string | null>(null);
   const [redirectAttempted, setRedirectAttempted] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [authTimeout, setAuthTimeout] = useState<NodeJS.Timeout | null>(null);
   const hasToastShown = useRef(false);
   
   useEffect(() => {
     // Clear the new signup flag when arriving at success page
     sessionStorage.removeItem('is_new_signup');
+    sessionStorage.removeItem('restaurant_redirect_attempted');
     
     // First check if we have credentials in sessionStorage (from redirect)
     const storedEmail = sessionStorage.getItem('temp_email');
@@ -45,6 +48,24 @@ const SignUpSuccess = () => {
           console.log("Auto sign-in successful");
         } catch (error) {
           console.error("Failed to auto sign-in:", error);
+          
+          // Set a timeout to try again if login fails
+          // This helps if the user account was just created and might
+          // not be immediately available
+          const timeout = setTimeout(async () => {
+            try {
+              console.log("Retrying auto sign-in after delay");
+              await signIn(storedEmail, storedPassword);
+              sessionStorage.removeItem('temp_email');
+              sessionStorage.removeItem('temp_password');
+              console.log("Delayed auto sign-in successful");
+            } catch (retryError) {
+              console.error("Failed to auto sign-in after retry:", retryError);
+              setIsCheckingAuth(false);
+            }
+          }, 3000);
+          
+          setAuthTimeout(timeout);
         } finally {
           setIsCheckingAuth(false);
         }
@@ -58,11 +79,18 @@ const SignUpSuccess = () => {
       console.log("No credentials or user ID found in session storage");
       setIsCheckingAuth(false);
     }
+    
+    // Clean up the timeout if component unmounts
+    return () => {
+      if (authTimeout) {
+        clearTimeout(authTimeout);
+      }
+    };
   }, [signIn]);
   
   // Effect to ensure profile is created after login
   useEffect(() => {
-    if (user && userType && !isCreatingProfile && retryCount < 3) {
+    if (user && userType && !isCreatingProfile && retryCount < 5) {
       const createUserProfile = async () => {
         setIsCreatingProfile(true);
         try {
@@ -90,7 +118,7 @@ const SignUpSuccess = () => {
               // Increment retry count if failed
               setRetryCount(prev => prev + 1);
               // Wait a bit longer before trying again
-              setTimeout(() => setIsCreatingProfile(false), 1000);
+              setTimeout(() => setIsCreatingProfile(false), 2000);
               return;
             }
           } else {
@@ -120,17 +148,37 @@ const SignUpSuccess = () => {
                   restaurant_id: user.id,
                   name: user.user_metadata?.display_name || 'New Restaurant',
                   cuisine: user.user_metadata?.food_type || 'Not specified',
-                  price_range: '$'
+                  price_range: '$',
+                  description: 'Restaurant created on ' + new Date().toISOString()
                 });
                 
               if (createError) {
                 console.error("Error creating restaurant details:", createError);
                 setRetryCount(prev => prev + 1);
-                setTimeout(() => setIsCreatingProfile(false), 1000);
+                setTimeout(() => setIsCreatingProfile(false), 2000);
                 return;
               }
               
               console.log("Restaurant details created successfully");
+              
+              // Check if we need to create a location
+              if (user.user_metadata?.address) {
+                const { error: locationError } = await supabase
+                  .from('restaurant_locations')
+                  .insert({
+                    restaurant_id: user.id,
+                    address: user.user_metadata.address,
+                    latitude: user.user_metadata.latitude || 0,
+                    longitude: user.user_metadata.longitude || 0
+                  });
+                  
+                if (locationError) {
+                  console.error("Error creating restaurant location:", locationError);
+                  // Continue anyway, not critical
+                } else {
+                  console.log("Restaurant location created successfully");
+                }
+              }
             } else {
               console.log("Restaurant details found:", detailsData);
             }
@@ -140,7 +188,7 @@ const SignUpSuccess = () => {
         } catch (error) {
           console.error("Error ensuring profile:", error);
           setRetryCount(prev => prev + 1);
-          setTimeout(() => setIsCreatingProfile(false), 1000);
+          setTimeout(() => setIsCreatingProfile(false), 2000);
         }
       };
       
@@ -174,7 +222,7 @@ const SignUpSuccess = () => {
         } else if (userType === 'customer') {
           navigate("/app");
         }
-      }, 2000); // Extra delay to ensure everything is set up
+      }, 3000); // Extra delay to ensure everything is set up
       
       return () => clearTimeout(timer);
     }
@@ -201,7 +249,7 @@ const SignUpSuccess = () => {
           } else {
             navigate("/app");
           }
-        }, 1000);
+        }, 2000);
       } catch (error) {
         setIsLoading(false);
         console.error("Failed to sign in:", error);

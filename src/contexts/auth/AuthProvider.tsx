@@ -31,11 +31,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         // For signup or login events, ensure we have a profile
         if (currentSession && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-          // Delay profile check slightly to avoid race conditions with triggers
+          // Delay profile check to allow database triggers to complete
           setTimeout(async () => {
             console.log("Checking user type after auth event:", event);
             await getUserTypeFromSession(currentSession);
-          }, 500);
+          }, 1500);
         } else if (!currentSession || event === 'SIGNED_OUT') {
           // Clear userType if logged out
           getUserTypeFromSession(null);

@@ -25,7 +25,7 @@ export const useUserType = () => {
         
         // Ensure profile exists with multiple retries
         let profileCreated = false;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        for (let attempt = 0; attempt < 5; attempt++) {
           try {
             const success = await ensureUserProfile(currentSession.user.id, metadataUserType);
             if (success) {
@@ -34,7 +34,7 @@ export const useUserType = () => {
               break;
             }
             console.log(`Profile creation failed on attempt ${attempt + 1}, will retry`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            await new Promise(resolve => setTimeout(resolve, 1500 * Math.pow(1.5, attempt)));
           } catch (err) {
             console.error(`Error ensuring user profile exists on attempt ${attempt + 1}:`, err);
           }
@@ -53,7 +53,7 @@ export const useUserType = () => {
       let profileData = null;
       let profileError = null;
       
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt++) {
         const result = await supabase
           .from("profiles")
           .select("user_type")
@@ -68,7 +68,7 @@ export const useUserType = () => {
         }
         
         console.log(`Profile fetch attempt ${attempt + 1} failed, will retry`);
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(1.5, attempt)));
       }
       
       if (profileError) {
