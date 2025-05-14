@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/toast";
 
 // Create separate types to avoid circular references
-interface ToastOptions {
+export interface ToastOptions {
   title?: string;
   description?: string;
   action?: ToastActionElement;
@@ -18,7 +18,7 @@ interface ToastOptions {
 // Create a context for the toast state
 type ToastContextValue = {
   toasts: ToastWithId[];
-  toast: (opts: ToastOptions) => void;
+  toast: (opts: ToastOptions) => string | void;
   dismiss: (id: string) => void;
 };
 

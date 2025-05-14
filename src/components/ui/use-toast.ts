@@ -1,5 +1,5 @@
 
-// This file now simply re-exports the toast implementation from shadcn/ui
-import { toast, useToast as useToastOriginal } from "@/hooks/use-toast";
+// This file now simply re-exports the toast implementation from hooks/use-toast.tsx
+import { toast, useToast, type ToastOptions } from "@/hooks/use-toast";
 
-export { toast, useToastOriginal as useToast };
+export { toast, useToast, type ToastOptions };
