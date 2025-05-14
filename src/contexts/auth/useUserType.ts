@@ -23,10 +23,15 @@ export const useUserType = () => {
         console.log("Found user type in metadata:", metadataUserType);
         setUserType(metadataUserType);
         
-        // Ensure profile exists
+        // Ensure profile exists with setTimeout to prevent deadlocks
         setTimeout(async () => {
-          await ensureUserProfile(currentSession.user.id, metadataUserType);
-        }, 0);
+          try {
+            const profileCreated = await ensureUserProfile(currentSession.user.id, metadataUserType);
+            console.log("Profile creation result:", profileCreated);
+          } catch (err) {
+            console.error("Error ensuring user profile exists:", err);
+          }
+        }, 100);
         
         return;
       }
@@ -36,7 +41,7 @@ export const useUserType = () => {
         .from("profiles")
         .select("user_type")
         .eq("id", currentSession.user.id)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.error("Error fetching user type:", error);

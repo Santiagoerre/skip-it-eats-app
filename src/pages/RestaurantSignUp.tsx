@@ -1,15 +1,14 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast"; // Updated import path
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
-import { supabase } from "@/integrations/supabase/client";
 import SignUpForm from "@/components/auth/SignUpForm";
 import EmailPasswordFields from "@/components/auth/EmailPasswordFields";
 import FoodTypeSelector from "@/components/auth/FoodTypeSelector";
 import ImageUploader from "@/components/auth/ImageUploader";
 import LocationSelector from "@/components/auth/LocationSelector";
 import { useFormValidation } from "@/hooks/useFormValidation";
-import { ensureUserProfile } from "@/services/authService";
 
 const RestaurantSignUp = () => {
   const navigate = useNavigate();
@@ -77,12 +76,6 @@ const RestaurantSignUp = () => {
     try {
       console.log("Starting restaurant signup process with coordinates:", { latitude, longitude });
       
-      // Store credentials temporarily for auto-signin after signup
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('temp_email', email);
-        sessionStorage.setItem('temp_password', password);
-      }
-      
       // Prepare metadata for profile creation
       const metadata = { 
         user_type: "restaurant",
@@ -96,7 +89,7 @@ const RestaurantSignUp = () => {
       console.log("Signing up with metadata:", metadata);
       
       // Register with Supabase with additional metadata
-      const { data, error } = await signUp(email, password, "restaurant", metadata);
+      const { data, error, userId } = await signUp(email, password, "restaurant", metadata);
       
       if (error) {
         console.error("Signup failed with error:", error);
@@ -111,6 +104,11 @@ const RestaurantSignUp = () => {
         title: "Restaurant account created!",
         description: "Your restaurant account has been created successfully.",
       });
+      
+      // Store the user ID in session storage for the success page to use
+      if (userId) {
+        sessionStorage.setItem('new_user_id', userId);
+      }
       
       // Navigate to success page, user will be handled by SignUpSuccess component
       navigate("/signup-success");

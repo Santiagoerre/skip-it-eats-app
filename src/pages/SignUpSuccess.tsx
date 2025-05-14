@@ -1,19 +1,22 @@
 
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
-import { useToast } from "@/hooks/use-toast"; // Updated import path
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
+import { ensureUserProfile } from "@/services/authService";
 
 const SignUpSuccess = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { userType, session, signIn } = useAuth();
+  const { userType, session, user, signIn } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState<string | null>(null);
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const hasToastShown = useRef(false);
   
   useEffect(() => {
@@ -45,6 +48,33 @@ const SignUpSuccess = () => {
     }
   }, [signIn]);
   
+  // Effect to ensure profile is created after login
+  useEffect(() => {
+    if (user && userType && !isCreatingProfile && retryCount < 3) {
+      const createUserProfile = async () => {
+        setIsCreatingProfile(true);
+        try {
+          // Force profile creation even if already attempted
+          const success = await ensureUserProfile(user.id, userType);
+          console.log("Profile creation result:", success);
+          if (!success) {
+            // Increment retry count if failed
+            setRetryCount(prev => prev + 1);
+            // Wait a bit longer before trying again
+            setTimeout(() => setIsCreatingProfile(false), 1000);
+          }
+        } catch (error) {
+          console.error("Error creating profile:", error);
+          setRetryCount(prev => prev + 1);
+          // Wait a bit longer before trying again
+          setTimeout(() => setIsCreatingProfile(false), 1000);
+        }
+      };
+      
+      createUserProfile();
+    }
+  }, [user, userType, isCreatingProfile, retryCount]);
+  
   useEffect(() => {
     // Only show welcome toast once and only if not already shown
     if (!hasToastShown.current) {
@@ -63,13 +93,15 @@ const SignUpSuccess = () => {
     // But only attempt the redirect once to avoid infinite loops
     if (session && userType && !redirectAttempted) {
       setRedirectAttempted(true);
+      
+      // Give extra time for profile creation to complete
       const timer = setTimeout(() => {
         if (userType === 'restaurant') {
           navigate("/restaurant-dashboard");
         } else if (userType === 'customer') {
           navigate("/app");
         }
-      }, 1500); // Brief delay to show the success message
+      }, 2000); // Extra delay to ensure everything is set up
       
       return () => clearTimeout(timer);
     }
@@ -87,8 +119,21 @@ const SignUpSuccess = () => {
       // Try to sign in if we have credentials but no session yet
       try {
         await signIn(email, password);
+        // Wait a moment for auth to process
+        setTimeout(() => {
+          if (userType === 'restaurant') {
+            navigate("/restaurant-dashboard");
+          } else {
+            navigate("/app");
+          }
+        }, 1000);
       } catch (error) {
         console.error("Failed to sign in:", error);
+        toast({
+          title: "Sign In Failed",
+          description: "Could not sign you in automatically. Please try signing in manually.",
+          variant: "destructive",
+        });
         navigate("/signin");
       }
     } else {
@@ -98,12 +143,14 @@ const SignUpSuccess = () => {
   };
 
   // Show loading state while checking auth
-  if (isCheckingAuth) {
+  if (isCheckingAuth || isCreatingProfile) {
     return (
       <div className="mobile-container app-height flex flex-col items-center justify-center p-6 bg-white">
         <div className="text-center space-y-6">
-          <CheckCircle className="h-20 w-20 text-skipit-primary animate-pulse mx-auto" />
-          <p className="text-muted-foreground">Checking your account...</p>
+          <Loader2 className="h-20 w-20 text-skipit-primary animate-spin mx-auto" />
+          <p className="text-muted-foreground">
+            {isCheckingAuth ? "Checking your account..." : "Setting up your profile..."}
+          </p>
         </div>
       </div>
     );

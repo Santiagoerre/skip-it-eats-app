@@ -3,22 +3,44 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Function to get the current session
 export const getCurrentSession = async () => {
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { session } } = await supabase.auth.getSession();
   return session;
 }
 
 // Function to get the current user
 export const getCurrentUser = async () => {
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
 
 // Function to sign out
 export const signOut = async () => {
-  const { error } = await supabase.auth.signOut()
+  const { error } = await supabase.auth.signOut();
   if (error) {
     console.error("Error signing out:", error);
   }
+}
+
+// Helper function to retry operations with exponential backoff
+async function retryOperation(operation: () => Promise<any>, maxRetries = 5): Promise<any> {
+  let lastError;
+  let delay = 500; // start with 500ms delay
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      console.log(`Attempt ${attempt + 1}/${maxRetries} failed:`, error);
+      lastError = error;
+      
+      // Wait before trying again
+      await new Promise(resolve => setTimeout(resolve, delay));
+      // Exponential backoff with some randomness
+      delay = delay * 1.5 + Math.random() * 300;
+    }
+  }
+  
+  throw lastError;
 }
 
 // Function to ensure user profile exists with direct database operations
@@ -47,35 +69,48 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     // If profile exists but with wrong user type, update it
     if (existingProfile) {
       console.log('Profile exists but with wrong user type, updating...');
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ user_type: userType })
-        .eq('id', userId);
       
-      if (updateError) {
-        console.error('Error updating profile:', updateError);
-        return false;
-      }
+      const updateProfile = async () => {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            user_type: userType,
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', userId);
+        
+        if (updateError) {
+          console.error('Error updating profile:', updateError);
+          throw updateError;
+        }
+      };
       
+      // Use retry for profile update
+      await retryOperation(updateProfile);
       return true;
     }
     
     // If profile doesn't exist, create it
     console.log('Profile does not exist, creating new profile');
-    const { error: insertError } = await supabase
-      .from('profiles')
-      .insert({
-        id: userId,
-        user_type: userType,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
     
-    if (insertError) {
-      console.error('Error creating profile:', insertError);
-      return false;
-    }
+    const createProfile = async () => {
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          user_type: userType,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      
+      if (insertError) {
+        console.error('Error creating profile:', insertError);
+        throw insertError;
+      }
+    };
     
+    // Use retry for profile creation
+    await retryOperation(createProfile);
     console.log('Profile created successfully');
     
     // If restaurant, create default restaurant details if they don't exist
@@ -94,20 +129,26 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       // If restaurant details don't exist, create them
       if (!existingDetails) {
         console.log('Creating default restaurant details');
-        const { error: detailsError } = await supabase
-          .from('restaurant_details')
-          .insert({
-            restaurant_id: userId,
-            name: 'New Restaurant',
-            cuisine: 'Not specified',
-            price_range: '$'
-          });
         
-        if (detailsError) {
-          console.error('Error creating restaurant details:', detailsError);
-        } else {
-          console.log('Restaurant details created successfully');
-        }
+        const createRestaurantDetails = async () => {
+          const { error: detailsError } = await supabase
+            .from('restaurant_details')
+            .insert({
+              restaurant_id: userId,
+              name: 'New Restaurant',
+              cuisine: 'Not specified',
+              price_range: '$'
+            });
+          
+          if (detailsError) {
+            console.error('Error creating restaurant details:', detailsError);
+            throw detailsError;
+          }
+        };
+        
+        // Use retry for restaurant details creation
+        await retryOperation(createRestaurantDetails);
+        console.log('Restaurant details created successfully');
       } else {
         console.log('Restaurant details already exist');
       }
