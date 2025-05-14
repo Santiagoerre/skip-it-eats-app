@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 interface LocationSelectorProps {
   address: string;
@@ -25,6 +25,9 @@ interface LocationSelectorProps {
   setLongitude: (lng: number) => void;
 }
 
+// Cache for address suggestions to reduce API calls
+const suggestionCache = new Map<string, string[]>();
+
 const LocationSelector = ({
   address,
   setAddress,
@@ -35,35 +38,17 @@ const LocationSelector = ({
   longitude,
   setLongitude
 }: LocationSelectorProps) => {
+  const { toast } = useToast();
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isMapDialogOpen, setIsMapDialogOpen] = useState(false);
+  const [lastRequestTime, setLastRequestTime] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
-
-  // Function to manually validate an address without external API calls
-  const manuallyValidateAddress = () => {
-    if (!address || address.trim().length < 5) {
-      setValidationError("Please enter a valid address");
-      return;
-    }
-    
-    // Generate some random coordinates near Madrid if we don't have any
-    const newLat = latitude || 40.4168 + (Math.random() * 0.1 - 0.05);
-    const newLng = longitude || -3.7038 + (Math.random() * 0.1 - 0.05);
-    
-    setLatitude(newLat);
-    setLongitude(newLng);
-    setIsValidated(true);
-    setValidationError(null);
-    
-    console.log("Address manually validated:", { address, latitude: newLat, longitude: newLng });
-  };
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Check if already validated on mount
   useEffect(() => {
@@ -71,6 +56,189 @@ const LocationSelector = ({
       setIsValidated(true);
     }
   }, [latitude, longitude, address, isValidated]);
+
+  // Function to get address suggestions with rate limiting and caching
+  const fetchAddressSuggestions = async (input: string) => {
+    if (input.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    // Check cache first
+    if (suggestionCache.has(input)) {
+      const cachedSuggestions = suggestionCache.get(input);
+      if (cachedSuggestions) {
+        setSuggestions(cachedSuggestions);
+        setShowSuggestions(cachedSuggestions.length > 0);
+        return;
+      }
+    }
+
+    // Rate limiting: Only allow requests every 1 second
+    const now = Date.now();
+    if (now - lastRequestTime < 1000) {
+      return;
+    }
+    
+    setLastRequestTime(now);
+
+    try {
+      console.log(`Fetching address suggestions for: ${input}`);
+      
+      // Using Nominatim OpenStreetMap API with proper headers
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=5`,
+        {
+          headers: {
+            "Accept-Language": "en-US,en",
+            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header to comply with Nominatim's ToS
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          const addresses = data.map((item: any) => item.display_name);
+          setSuggestions(addresses);
+          setShowSuggestions(addresses.length > 0);
+          
+          // Cache the results
+          suggestionCache.set(input, addresses);
+          
+          console.log(`Found ${addresses.length} suggestions`);
+        } else {
+          console.warn("Received data is not an array:", data);
+          setSuggestions([]);
+          setShowSuggestions(false);
+        }
+      } else {
+        console.error("Error fetching address suggestions, status:", response.status);
+        setSuggestions([]);
+        setShowSuggestions(false);
+        toast({
+          title: "Error fetching suggestions",
+          description: `Server responded with status ${response.status}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching address suggestions:", error);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      toast({
+        title: "Error fetching suggestions",
+        description: "Could not retrieve address suggestions. Please try typing your full address.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Function to validate an address and get coordinates with better error handling
+  const validateAddress = async () => {
+    if (!address || address.trim().length < 5) {
+      setValidationError("Please enter a valid address");
+      return;
+    }
+
+    setIsValidating(true);
+    setIsValidated(false);
+    setValidationError(null);
+    
+    try {
+      console.log(`Validating address: ${address}`);
+      
+      // Using Nominatim OpenStreetMap API with proper headers
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        {
+          headers: {
+            "Accept-Language": "en-US,en",
+            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Network error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (Array.isArray(data) && data.length > 0) {
+        const newLat = parseFloat(data[0].lat);
+        const newLng = parseFloat(data[0].lon);
+        
+        if (isNaN(newLat) || isNaN(newLng)) {
+          throw new Error("Invalid coordinates returned from geocoding service");
+        }
+        
+        setLatitude(newLat);
+        setLongitude(newLng);
+        setIsValidated(true);
+        console.log("Address validated successfully:", { address, latitude: newLat, longitude: newLng });
+        
+        toast({
+          title: "Address Validated",
+          description: "Your address has been successfully validated.",
+        });
+      } else {
+        throw new Error("Could not find coordinates for this address");
+      }
+    } catch (error) {
+      console.error("Error validating address:", error);
+      setValidationError(error instanceof Error ? error.message : "Failed to validate address. Please try again later.");
+      
+      toast({
+        title: "Validation Failed",
+        description: error instanceof Error ? error.message : "Failed to validate address. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Debounced address input handler
+  const handleAddressChange = (value: string) => {
+    setAddress(value);
+    setIsValidated(false);
+    
+    // Clear previous timer
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    
+    // Set new timer to fetch suggestions after 500ms of inactivity
+    debounceTimer.current = setTimeout(() => {
+      fetchAddressSuggestions(value);
+    }, 500);
+  };
+
+  // Handle suggestion selection
+  const handleSelectSuggestion = (suggestion: string) => {
+    console.log("Selected suggestion:", suggestion);
+    setAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    // Auto-validate when a suggestion is selected
+    setTimeout(() => validateAddress(), 100);
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Initialize the map when dialog opens
   useEffect(() => {
@@ -88,6 +256,10 @@ const LocationSelector = ({
         const mapElement = document.createElement('div');
         mapElement.className = 'w-full h-full bg-gray-100 relative';
         mapContainer.appendChild(mapElement);
+        
+        // Center coordinates (use existing or default to a central location)
+        const centerLat = latitude || 40.7128; // Default to New York
+        const centerLng = longitude || -74.0060;
         
         // If we have coordinates, show a marker
         if (latitude && longitude) {
@@ -119,10 +291,6 @@ const LocationSelector = ({
         mapElement.addEventListener('click', (e) => {
           if (e.target === instructions) return; // Don't trigger when clicking on instructions
           
-          // Use existing coordinates as center or default to Madrid
-          const centerLat = latitude || 40.4168;
-          const centerLng = longitude || -3.7038;
-          
           // Calculate relative position in the container to adjust coordinates
           const rect = mapElement.getBoundingClientRect();
           const relX = (e.clientX - rect.left) / rect.width - 0.5; // -0.5 to 0.5
@@ -136,59 +304,54 @@ const LocationSelector = ({
           setLongitude(newLng);
           setIsValidated(true);
           
+          // Attempt to reverse geocode the new coordinates
+          fetchAddressFromCoordinates(newLat, newLng);
+          
           // Reload the map with new marker
           loadMap();
         });
       } catch (error) {
         console.error("Error loading map:", error);
+        toast({
+          title: "Map Error",
+          description: "Could not load the map. Please try again.",
+          variant: "destructive",
+        });
       }
     };
     
     loadMap();
-  }, [isMapDialogOpen, latitude, longitude]);
+  }, [isMapDialogOpen, latitude, longitude, toast]);
 
-  // Handle address input change
-  const handleAddressChange = (value: string) => {
-    setAddress(value);
-    setIsValidated(false);
-    
-    // Generate sample suggestions for demonstration purposes
-    if (value.length > 3) {
-      const sampleSuggestions = [
-        `${value}, Madrid, Spain`,
-        `${value}, Barcelona, Spain`,
-        `${value}, Valencia, Spain`,
-      ];
-      setSuggestions(sampleSuggestions);
-      setShowSuggestions(true);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
+  // Function to get address from coordinates (reverse geocoding)
+  const fetchAddressFromCoordinates = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            "Accept-Language": "en-US,en",
+            "User-Agent": "SkipItApp/1.0"
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Network error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.display_name) {
+        setAddress(data.display_name);
+      } else {
+        console.warn("Could not reverse geocode the coordinates");
+      }
+    } catch (error) {
+      console.error("Error reverse geocoding:", error);
+      // Non-blocking error, we'll still keep the coordinates
     }
   };
-
-  // Handle suggestion selection
-  const handleSelectSuggestion = (suggestion: string) => {
-    console.log("Selected suggestion:", suggestion);
-    setAddress(suggestion);
-    setSuggestions([]);
-    setShowSuggestions(false);
-    manuallyValidateAddress();
-  };
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   return (
     <div className="space-y-2">
@@ -237,7 +400,7 @@ const LocationSelector = ({
             size="sm"
             variant="ghost"
             className="h-auto"
-            onClick={manuallyValidateAddress}
+            onClick={validateAddress}
             disabled={isLoading || isValidating || !address}
           >
             {isValidating ? 
@@ -249,7 +412,7 @@ const LocationSelector = ({
           </Button>
         </div>
         
-        {/* Address suggestions dropdown - Made clickable */}
+        {/* Address suggestions dropdown */}
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
             <ul className="py-1 max-h-60 overflow-auto">
