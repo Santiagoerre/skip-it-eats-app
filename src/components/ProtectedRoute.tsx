@@ -23,13 +23,20 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         return;
       }
 
-      console.log("ProtectedRoute - verifying auth:", { session, userType, requiredUserType });
+      console.log("ProtectedRoute - verifying auth:", { 
+        isLoading, 
+        hasSession: !!session, 
+        currentUserType: userType, 
+        requiredUserType,
+        pathname: location.pathname 
+      });
+      
       setIsCheckingAuth(true);
       
       try {
         // If no session, redirect to sign in
         if (!session) {
-          console.log("No session, redirecting to signin");
+          console.log("No session, redirecting to signin from", location.pathname);
           navigate("/signin", { state: { from: location.pathname } });
           return;
         }
@@ -47,6 +54,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
             
             // Handle redirection based on user type from metadata
             if (requiredUserType && metadataUserType !== requiredUserType) {
+              console.log("Type mismatch from metadata:", metadataUserType, "vs required:", requiredUserType);
               redirectBasedOnUserType(metadataUserType);
               return;
             }

@@ -5,7 +5,6 @@ import { CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/auth";
-import { supabase } from "@/integrations/supabase/client";
 
 const SignUpSuccess = () => {
   const navigate = useNavigate();
@@ -14,6 +13,7 @@ const SignUpSuccess = () => {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState<string | null>(null);
+  const [redirectAttempted, setRedirectAttempted] = useState(false);
   
   useEffect(() => {
     // First check if we have credentials in sessionStorage (from redirect)
@@ -45,14 +45,19 @@ const SignUpSuccess = () => {
   }, [signIn]);
   
   useEffect(() => {
-    // Show a welcome toast when the component mounts
-    toast({
-      title: "Welcome to Skip It!",
-      description: "Your account has been created successfully.",
-    });
+    // Show a welcome toast when the component mounts - but only once
+    const hasShownWelcome = sessionStorage.getItem('shown_welcome_toast');
+    if (!hasShownWelcome) {
+      toast({
+        title: "Welcome to Skip It!",
+        description: "Your account has been created successfully.",
+      });
+      sessionStorage.setItem('shown_welcome_toast', 'true');
+    }
     
     // If user is already logged in, redirect to the appropriate dashboard
-    if (session) {
+    if (session && userType && !redirectAttempted) {
+      setRedirectAttempted(true);
       const timer = setTimeout(() => {
         if (userType === 'restaurant') {
           navigate("/restaurant-dashboard");
@@ -63,7 +68,7 @@ const SignUpSuccess = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [toast, session, userType, navigate]);
+  }, [toast, session, userType, navigate, redirectAttempted]);
 
   const handleContinue = async () => {
     if (session) {
@@ -102,7 +107,7 @@ const SignUpSuccess = () => {
   return (
     <div className="mobile-container app-height flex flex-col items-center justify-center p-6 bg-white">
       <div className="text-center space-y-6">
-        <CheckCircle className="h-20 w-20 text-green-500 mx-auto animate-pulse" />
+        <CheckCircle className="h-20 w-20 text-green-500 mx-auto" />
         
         <h1 className="text-3xl font-bold text-skipit-primary">Sign up successful!</h1>
         

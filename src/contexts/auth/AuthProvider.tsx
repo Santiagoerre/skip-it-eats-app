@@ -17,6 +17,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { userType, getUserTypeFromSession } = useUserType();
 
   useEffect(() => {
+    console.log("Auth state changed:", session?.user?.id, userType);
+  }, [session, userType]);
+
+  useEffect(() => {
     // Set up auth state listener FIRST to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
@@ -25,9 +29,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(currentSession?.user ?? null);
         
         // Use setTimeout to avoid any potential Supabase deadlocks
-        setTimeout(() => {
-          getUserTypeFromSession(currentSession);
-        }, 0);
+        if (currentSession) {
+          setTimeout(() => {
+            getUserTypeFromSession(currentSession);
+          }, 0);
+        } else {
+          // If session is null, also set userType to null
+          setTimeout(() => {
+            getUserTypeFromSession(null);
+          }, 0);
+        }
       }
     );
 

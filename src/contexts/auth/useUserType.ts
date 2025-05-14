@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureUserProfile } from "@/services/authService";
@@ -9,7 +9,7 @@ export const useUserType = () => {
   const [userType, setUserType] = useState<UserType>(null);
 
   // Helper function to safely get user type
-  const getUserTypeFromSession = async (currentSession: Session | null) => {
+  const getUserTypeFromSession = useCallback(async (currentSession: Session | null) => {
     if (!currentSession?.user) {
       setUserType(null);
       return;
@@ -55,7 +55,7 @@ export const useUserType = () => {
       console.error("Failed to get user type:", err);
       setUserType(null);
     }
-  };
+  }, []);
 
   return {
     userType,

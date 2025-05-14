@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +11,6 @@ import { useState } from "react";
 // Pages
 import SplashScreen from "./pages/SplashScreen";
 import SignIn from "./pages/SignIn";
-import SignUp from "./pages/SignUp";
 import UserTypeSelection from "./pages/UserTypeSelection";
 import CustomerSignUp from "./pages/CustomerSignUp";
 import RestaurantSignUp from "./pages/RestaurantSignUp";
