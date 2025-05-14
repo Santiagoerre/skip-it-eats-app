@@ -89,7 +89,7 @@ const RestaurantSignUp = () => {
       console.log("Signing up with metadata:", metadata);
       
       // Register with Supabase with additional metadata
-      const { data, error, userId } = await signUp(email, password, "restaurant", metadata);
+      const { data, error } = await signUp(email, password, "restaurant", metadata);
       
       if (error) {
         console.error("Signup failed with error:", error);
@@ -106,8 +106,8 @@ const RestaurantSignUp = () => {
       });
       
       // Store the user ID in session storage for the success page to use
-      if (userId) {
-        sessionStorage.setItem('new_user_id', userId);
+      if (data.user.id) {
+        sessionStorage.setItem('new_user_id', data.user.id);
       }
       
       // Navigate to success page, user will be handled by SignUpSuccess component

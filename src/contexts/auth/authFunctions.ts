@@ -44,13 +44,10 @@ export const signUp = async (
     
     // Check if the user was actually created
     if (data?.user) {
-      const userId = data.user.id;
-      console.log("User created with ID:", userId);
+      console.log("User created with ID:", data.user.id);
       
-      // Instead of trying to create profile immediately, we'll return success
-      // The profile will be created by our RLS bypass function or by the 
-      // success page's retry mechanism
-      return { data, userId }; 
+      // Return the data with user's ID for access in the calling component
+      return { data };
     }
     
     return { data }; 
