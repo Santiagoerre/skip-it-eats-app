@@ -73,3 +73,14 @@ export const getNewUserId = (): string | null => {
 export const clearNewUserId = (): void => {
   sessionStorage.removeItem('new_user_id');
 };
+
+/**
+ * Clears all signup related session storage values at once
+ */
+export const clearAllSignupFlags = (): void => {
+  clearNewSignupFlag();
+  clearTemporaryCredentials();
+  clearNewUserId();
+  sessionStorage.removeItem('restaurant_redirect_attempted');
+  sessionStorage.removeItem('shown_welcome_toast');
+};

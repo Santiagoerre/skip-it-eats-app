@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 import { ensureUserProfile } from "@/services/authService";
 import { supabase } from "@/integrations/supabase/client";
+import { clearAllSignupFlags, getTemporaryCredentials, getNewUserId } from "@/utils/authStateHelpers";
 
 const SignUpSuccess = () => {
   const navigate = useNavigate();
@@ -20,16 +21,19 @@ const SignUpSuccess = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [authTimeout, setAuthTimeout] = useState<NodeJS.Timeout | null>(null);
   const hasToastShown = useRef(false);
+  const signInAttempted = useRef(false);
   
   useEffect(() => {
-    // Clear the new signup flag when arriving at success page
-    sessionStorage.removeItem('is_new_signup');
+    // Avoid duplicate initialization
+    if (signInAttempted.current) return;
+    signInAttempted.current = true;
+    
+    // Clear the redirect flags to prevent navigation loops
     sessionStorage.removeItem('restaurant_redirect_attempted');
     
-    // First check if we have credentials in sessionStorage (from redirect)
-    const storedEmail = sessionStorage.getItem('temp_email');
-    const storedPassword = sessionStorage.getItem('temp_password');
-    const newUserId = sessionStorage.getItem('new_user_id');
+    // Check for credentials or new user ID in sessionStorage
+    const { email: storedEmail, password: storedPassword } = getTemporaryCredentials();
+    const newUserId = getNewUserId();
     
     if (storedEmail && storedPassword) {
       setEmail(storedEmail);
@@ -41,23 +45,16 @@ const SignUpSuccess = () => {
           console.log("Attempting auto sign-in with stored credentials");
           await signIn(storedEmail, storedPassword);
           
-          // Clear credentials after use
-          sessionStorage.removeItem('temp_email');
-          sessionStorage.removeItem('temp_password');
-          
+          // Don't clear credentials yet - we'll do it after successful profile verification
           console.log("Auto sign-in successful");
         } catch (error) {
           console.error("Failed to auto sign-in:", error);
           
           // Set a timeout to try again if login fails
-          // This helps if the user account was just created and might
-          // not be immediately available
           const timeout = setTimeout(async () => {
             try {
               console.log("Retrying auto sign-in after delay");
               await signIn(storedEmail, storedPassword);
-              sessionStorage.removeItem('temp_email');
-              sessionStorage.removeItem('temp_password');
               console.log("Delayed auto sign-in successful");
             } catch (retryError) {
               console.error("Failed to auto sign-in after retry:", retryError);
@@ -88,167 +85,176 @@ const SignUpSuccess = () => {
     };
   }, [signIn]);
   
-  // Effect to ensure profile is created after login
+  // Effect to ensure profile is created after login - only run once when user and userType are available
   useEffect(() => {
-    if (user && userType && !isCreatingProfile && retryCount < 5) {
-      const createUserProfile = async () => {
-        setIsCreatingProfile(true);
-        try {
-          console.log("Ensuring user profile exists for:", user.id, "with type:", userType);
+    // Do not retry if we have already hit the retry limit
+    if (retryCount >= 5) return;
+    
+    // Only run this effect if user is logged in and user type is known
+    if (!user || !userType || isCreatingProfile) return;
+    
+    const createUserProfile = async () => {
+      setIsCreatingProfile(true);
+      try {
+        console.log("Ensuring user profile exists for:", user.id, "with type:", userType);
+        
+        // First check if profile exists
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, user_type')
+          .eq('id', user.id)
+          .maybeSingle();
           
-          // First check if profile exists
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, user_type')
-            .eq('id', user.id)
+        if (profileError) {
+          console.error("Error checking profile:", profileError);
+        }
+        
+        if (!profileData) {
+          console.log("No profile found, creating one");
+          
+          // Force profile creation
+          const success = await ensureUserProfile(user.id, userType);
+          console.log("Profile creation result:", success);
+          
+          if (!success) {
+            // Increment retry count if failed
+            setRetryCount(prev => prev + 1);
+            // Wait a bit longer before trying again
+            setTimeout(() => setIsCreatingProfile(false), 2000);
+            return;
+          }
+        } else {
+          console.log("Profile already exists:", profileData);
+        }
+        
+        // Since we're at this point, we can safely clear temporary credentials
+        if (email && password) {
+          console.log("Profile verified, clearing temporary credentials");
+          setTimeout(() => {
+            sessionStorage.removeItem('temp_email');
+            sessionStorage.removeItem('temp_password');
+          }, 1000);
+        }
+        
+        // Check for restaurant details if user is a restaurant
+        if (userType === 'restaurant') {
+          console.log("Checking restaurant details");
+          
+          const { data: detailsData, error: detailsError } = await supabase
+            .from('restaurant_details')
+            .select('id, name')
+            .eq('restaurant_id', user.id)
             .maybeSingle();
             
-          if (profileError) {
-            console.error("Error checking profile:", profileError);
+          if (detailsError) {
+            console.error("Error checking restaurant details:", detailsError);
           }
           
-          if (!profileData) {
-            console.log("No profile found, creating one");
+          if (!detailsData) {
+            console.log("No restaurant details found, creating default");
             
-            // Force profile creation even if already attempted
-            const success = await ensureUserProfile(user.id, userType);
-            console.log("Profile creation result:", success);
-            
-            if (!success) {
-              // Increment retry count if failed
+            const { error: createError } = await supabase
+              .from('restaurant_details')
+              .insert({
+                restaurant_id: user.id,
+                name: user.user_metadata?.display_name || 'New Restaurant',
+                cuisine: user.user_metadata?.food_type || 'Not specified',
+                price_range: '$',
+                description: 'Restaurant created on ' + new Date().toISOString()
+              });
+              
+            if (createError) {
+              console.error("Error creating restaurant details:", createError);
               setRetryCount(prev => prev + 1);
-              // Wait a bit longer before trying again
               setTimeout(() => setIsCreatingProfile(false), 2000);
               return;
             }
+            
+            console.log("Restaurant details created successfully");
           } else {
-            console.log("Profile already exists:", profileData);
+            console.log("Restaurant details found:", detailsData);
           }
-          
-          // Check for restaurant details if user is a restaurant
-          if (userType === 'restaurant') {
-            console.log("Checking restaurant details");
-            
-            const { data: detailsData, error: detailsError } = await supabase
-              .from('restaurant_details')
-              .select('id, name')
-              .eq('restaurant_id', user.id)
-              .maybeSingle();
-              
-            if (detailsError) {
-              console.error("Error checking restaurant details:", detailsError);
-            }
-            
-            if (!detailsData) {
-              console.log("No restaurant details found, creating default");
-              
-              const { error: createError } = await supabase
-                .from('restaurant_details')
-                .insert({
-                  restaurant_id: user.id,
-                  name: user.user_metadata?.display_name || 'New Restaurant',
-                  cuisine: user.user_metadata?.food_type || 'Not specified',
-                  price_range: '$',
-                  description: 'Restaurant created on ' + new Date().toISOString()
-                });
-                
-              if (createError) {
-                console.error("Error creating restaurant details:", createError);
-                setRetryCount(prev => prev + 1);
-                setTimeout(() => setIsCreatingProfile(false), 2000);
-                return;
-              }
-              
-              console.log("Restaurant details created successfully");
-              
-              // Check if we need to create a location
-              if (user.user_metadata?.address) {
-                const { error: locationError } = await supabase
-                  .from('restaurant_locations')
-                  .insert({
-                    restaurant_id: user.id,
-                    address: user.user_metadata.address,
-                    latitude: user.user_metadata.latitude || 0,
-                    longitude: user.user_metadata.longitude || 0
-                  });
-                  
-                if (locationError) {
-                  console.error("Error creating restaurant location:", locationError);
-                  // Continue anyway, not critical
-                } else {
-                  console.log("Restaurant location created successfully");
-                }
-              }
-            } else {
-              console.log("Restaurant details found:", detailsData);
-            }
-          }
-          
-          setIsCreatingProfile(false);
-        } catch (error) {
-          console.error("Error ensuring profile:", error);
-          setRetryCount(prev => prev + 1);
-          setTimeout(() => setIsCreatingProfile(false), 2000);
         }
-      };
-      
-      createUserProfile();
-    }
-  }, [user, userType, isCreatingProfile, retryCount]);
-  
-  useEffect(() => {
-    // Only show welcome toast once and only if not already shown
-    if (!hasToastShown.current) {
-      const hasShownWelcome = sessionStorage.getItem('shown_welcome_toast');
-      if (!hasShownWelcome) {
-        toast({
-          title: "Welcome to Skip It!",
-          description: "Your account has been created successfully.",
-        });
-        sessionStorage.setItem('shown_welcome_toast', 'true');
-        hasToastShown.current = true;
+        
+        // We're all set, mark profile creation as complete
+        setIsCreatingProfile(false);
+        
+        // Now we can safely remove the is_new_signup flag since profile is verified
+        sessionStorage.removeItem('is_new_signup');
+        
+      } catch (error) {
+        console.error("Error ensuring profile:", error);
+        setRetryCount(prev => prev + 1);
+        setTimeout(() => setIsCreatingProfile(false), 2000);
       }
+    };
+    
+    createUserProfile();
+  }, [user, userType, isCreatingProfile, retryCount, email, password]);
+  
+  // Show welcome toast and handle redirects
+  useEffect(() => {
+    // Only show welcome toast once
+    if (!hasToastShown.current) {
+      toast({
+        title: "Welcome to Skip It!",
+        description: "Your account has been created successfully.",
+      });
+      sessionStorage.setItem('shown_welcome_toast', 'true');
+      hasToastShown.current = true;
     }
     
-    // If user is already logged in, redirect to the appropriate dashboard
-    // But only attempt the redirect once to avoid infinite loops
-    if (session && userType && !redirectAttempted && !isCreatingProfile) {
+    // Handle redirect logic - don't redirect while still checking auth or creating profile
+    if (session && userType && !redirectAttempted && !isCheckingAuth && !isCreatingProfile) {
       setRedirectAttempted(true);
       
-      // Give extra time for profile creation to complete
+      // Give extra time for everything to settle
       const timer = setTimeout(() => {
         if (userType === 'restaurant') {
-          navigate("/restaurant-dashboard");
+          console.log("Redirecting to restaurant dashboard");
+          navigate("/restaurant-dashboard", { replace: true });
         } else if (userType === 'customer') {
-          navigate("/app");
+          console.log("Redirecting to customer app");
+          navigate("/app", { replace: true });
         }
-      }, 3000); // Extra delay to ensure everything is set up
+        
+        // Clear all signup flags after successful redirect
+        setTimeout(clearAllSignupFlags, 1000);
+      }, 2000);
       
       return () => clearTimeout(timer);
     }
-  }, [toast, session, userType, navigate, redirectAttempted, isCreatingProfile]);
+  }, [toast, session, userType, navigate, redirectAttempted, isCheckingAuth, isCreatingProfile]);
 
+  // Handle continue button click
   const handleContinue = async () => {
     if (session) {
       // Navigate based on user type
       if (userType === 'restaurant') {
-        navigate("/restaurant-dashboard");
+        navigate("/restaurant-dashboard", { replace: true });
       } else {
-        navigate("/app");
+        navigate("/app", { replace: true });
       }
+      
+      // Clean up session storage
+      setTimeout(clearAllSignupFlags, 1000);
     } else if (email && password) {
       // Try to sign in if we have credentials but no session yet
       try {
         setIsLoading(true);
         await signIn(email, password);
+        
         // Wait a moment for auth to process
         setTimeout(() => {
           setIsLoading(false);
           if (userType === 'restaurant') {
-            navigate("/restaurant-dashboard");
+            navigate("/restaurant-dashboard", { replace: true });
           } else {
-            navigate("/app");
+            navigate("/app", { replace: true });
           }
+          
+          // Clean up session storage
+          setTimeout(clearAllSignupFlags, 1000);
         }, 2000);
       } catch (error) {
         setIsLoading(false);
@@ -258,11 +264,11 @@ const SignUpSuccess = () => {
           description: "Could not sign you in automatically. Please try signing in manually.",
           variant: "destructive",
         });
-        navigate("/signin");
+        navigate("/signin", { replace: true });
       }
     } else {
       // If not logged in, go to signin
-      navigate("/signin");
+      navigate("/signin", { replace: true });
     }
   };
 

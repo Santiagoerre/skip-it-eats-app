@@ -7,10 +7,12 @@ import { useRestaurantImageUpload } from "@/hooks/restaurant/useRestaurantImageU
 import { verifyWithBackoff } from "@/hooks/restaurant/useRestaurantProfileVerification";
 import { 
   clearTemporaryCredentials, 
-  markAsNewSignupFlow,
   storeTemporaryCredentials
 } from "@/utils/authStateHelpers";
 
+/**
+ * Hook to manage the restaurant signup process
+ */
 export const useRestaurantSignUp = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -33,9 +35,6 @@ export const useRestaurantSignUp = () => {
     isLoading,
   } = signUpState;
   
-  // Mark this as a new signup flow
-  markAsNewSignupFlow();
-
   // Sign up process with improved error handling and verification
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +47,9 @@ export const useRestaurantSignUp = () => {
       
       // Store current signup state in sessionStorage to persist across redirects
       storeTemporaryCredentials(email, password);
+      
+      // Set is_new_signup flag to maintain signup flow state
+      sessionStorage.setItem('is_new_signup', 'true');
       
       // Prepare metadata for profile creation
       const metadata = { 
@@ -100,7 +102,16 @@ export const useRestaurantSignUp = () => {
       
       // Handle image upload if an image was provided
       if (imageFile && data.user.id) {
-        await handleImageUpload(data.user.id, imageFile);
+        try {
+          await handleImageUpload(data.user.id, imageFile);
+        } catch (uploadError) {
+          console.error("Image upload failed, but continuing with signup:", uploadError);
+          toast({
+            title: "Image Upload Failed",
+            description: "We couldn't upload your restaurant image, but your account was created successfully. You can add an image later.",
+            variant: "default",
+          });
+        }
       }
       
       toast({
@@ -108,14 +119,17 @@ export const useRestaurantSignUp = () => {
         description: "Your restaurant account has been created successfully.",
       });
       
-      // Navigate to success page, user will be handled by SignUpSuccess component
-      navigate("/signup-success");
+      // Navigate to success page with replace to prevent back navigation to signup
+      navigate("/signup-success", { replace: true });
       
     } catch (error: any) {
       console.error("Restaurant signup error:", error);
       
       // Clear temporary credentials on error
       clearTemporaryCredentials();
+      
+      // Clear is_new_signup flag on error to prevent state conflicts
+      sessionStorage.removeItem('is_new_signup');
       
       toast({
         title: "Sign Up Failed",

@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useFormValidation } from "@/hooks/useFormValidation";
@@ -16,12 +16,15 @@ import RestaurantNameField from "@/components/restaurant/signup/RestaurantNameFi
 const RestaurantSignUp = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { session, user, userType } = useAuth();
   const { toast } = useToast();
   const { errors, validateEmailAndPassword, validateLocationData, resetErrors } = useFormValidation();
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+  
+  // Use URL search params directly instead of session storage to prevent state conflicts
   const [isNewSignupFlow, setIsNewSignupFlow] = useState(
-    location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true'
+    searchParams.get('new') === 'true' || sessionStorage.getItem('is_new_signup') === 'true'
   );
   
   const {
@@ -56,40 +59,22 @@ const RestaurantSignUp = () => {
     // Only attempt redirect once
     setRedirectAttempted(true);
     
-    // Store redirect attempt in session storage to prevent repeated redirects
-    if (!sessionStorage.getItem('restaurant_redirect_attempted')) {
-      sessionStorage.setItem('restaurant_redirect_attempted', 'true');
-      
-      // If user has a complete restaurant profile, redirect to dashboard
-      if (session && userType === 'restaurant') {
-        console.log("RestaurantSignUp - User already has restaurant profile, redirecting to dashboard");
-        navigate("/restaurant-dashboard");
-      }
+    // If user has a complete restaurant profile, redirect to dashboard
+    if (session && userType === 'restaurant') {
+      console.log("RestaurantSignUp - User already has restaurant profile, redirecting to dashboard");
+      navigate("/restaurant-dashboard", { replace: true });
     }
   }, [session, userType, navigate, redirectAttempted, isNewSignupFlow, isLoading]);
   
-  // Clear redirect flags when component unmounts
+  // CRITICAL FIX: Remove the problematic cleanup function that was causing the loop
   useEffect(() => {
     console.log("RestaurantSignUp component mounted, isNewSignupFlow:", isNewSignupFlow);
     
+    // We do not manipulate session storage in the cleanup function anymore
     return () => {
-      console.log("RestaurantSignUp component unmounting");
       resetErrors();
-      
-      // Only clear the new signup flag when navigating away from the restaurant signup page
-      // and not to the success page (which is the expected flow)
-      if (location.pathname === '/signup/restaurant' && !window.location.pathname.includes('signup-success')) {
-        console.log("Clearing is_new_signup flag on unmount");
-        sessionStorage.removeItem('is_new_signup');
-      }
-      
-      // Clear redirect flag only when navigating to dashboard or success page
-      if (window.location.pathname.includes('restaurant-dashboard') || 
-          window.location.pathname.includes('signup-success')) {
-        sessionStorage.removeItem('restaurant_redirect_attempted');
-      }
     };
-  }, [resetErrors, location.pathname]);
+  }, [resetErrors]);
 
   // Validate form before submission
   const validateForm = () => {
