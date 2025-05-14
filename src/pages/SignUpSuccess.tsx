@@ -2,8 +2,8 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { useEffect, useState, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 
 const SignUpSuccess = () => {
@@ -14,6 +14,7 @@ const SignUpSuccess = () => {
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState<string | null>(null);
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+  const hasToastShown = useRef(false);
   
   useEffect(() => {
     // First check if we have credentials in sessionStorage (from redirect)
@@ -45,17 +46,21 @@ const SignUpSuccess = () => {
   }, [signIn]);
   
   useEffect(() => {
-    // Show a welcome toast when the component mounts - but only once
-    const hasShownWelcome = sessionStorage.getItem('shown_welcome_toast');
-    if (!hasShownWelcome) {
-      toast({
-        title: "Welcome to Skip It!",
-        description: "Your account has been created successfully.",
-      });
-      sessionStorage.setItem('shown_welcome_toast', 'true');
+    // Only show welcome toast once and only if not already shown
+    if (!hasToastShown.current) {
+      const hasShownWelcome = sessionStorage.getItem('shown_welcome_toast');
+      if (!hasShownWelcome) {
+        toast({
+          title: "Welcome to Skip It!",
+          description: "Your account has been created successfully.",
+        });
+        sessionStorage.setItem('shown_welcome_toast', 'true');
+        hasToastShown.current = true;
+      }
     }
     
     // If user is already logged in, redirect to the appropriate dashboard
+    // But only attempt the redirect once to avoid infinite loops
     if (session && userType && !redirectAttempted) {
       setRedirectAttempted(true);
       const timer = setTimeout(() => {

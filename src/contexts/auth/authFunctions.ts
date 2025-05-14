@@ -47,9 +47,16 @@ export const signUp = async (
       const userId = data.user.id;
       console.log("User created with ID:", userId);
       
-      // Use setTimeout to avoid potential deadlocks
-      setTimeout(async () => {
-        try {
+      // Wait for the auth session to be established before continuing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      try {
+        // First check if the user can access their own profile (RLS check)
+        const { data: userAuthData, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !userAuthData?.user) {
+          console.log("User is not authenticated yet, using admin functions");
+          
           // First check if profile already exists
           const { data: existingProfile } = await supabase
             .from('profiles')
@@ -77,15 +84,9 @@ export const signUp = async (
           } else {
             console.log("Profile already exists for user:", userId);
           }
-        } catch (err) {
-          console.error("Error in profile creation:", err);
-        }
-      }, 0);
-      
-      // For restaurant users, create restaurant details
-      if (userType === 'restaurant') {
-        setTimeout(async () => {
-          try {
+          
+          // For restaurant users, create restaurant details
+          if (userType === 'restaurant') {
             console.log("Creating restaurant details for:", userId, "with data:", metadata);
             
             const { error: detailsError } = await supabase
@@ -123,10 +124,12 @@ export const signUp = async (
                 console.log("Restaurant location created successfully");
               }
             }
-          } catch (err) {
-            console.error("Error in restaurant details creation:", err);
           }
-        }, 0);
+        } else {
+          console.log("User is already authenticated, proceeding with normal flow");
+        }
+      } catch (err) {
+        console.error("Error in profile/details creation:", err);
       }
     }
     
