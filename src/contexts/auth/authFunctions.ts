@@ -48,85 +48,65 @@ export const signUp = async (
       console.log("User created with ID:", userId);
       
       // Wait for the auth session to be established before continuing
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       try {
-        // First check if the user can access their own profile (RLS check)
-        const { data: userAuthData, error: authError } = await supabase.auth.getUser();
+        // Create profile for the new user
+        console.log("Creating profile for user:", userId);
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            user_type: userType,
+            display_name: metadata.display_name || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
         
-        if (authError || !userAuthData?.user) {
-          console.log("User is not authenticated yet, using admin functions");
+        if (profileError) {
+          console.error("Error creating profile:", profileError);
+        } else {
+          console.log("Created profile successfully");
+        }
+        
+        // For restaurant users, create restaurant details
+        if (userType === 'restaurant') {
+          console.log("Creating restaurant details for:", userId);
           
-          // First check if profile already exists
-          const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', userId)
-            .single();
+          const { error: detailsError } = await supabase
+            .from('restaurant_details')
+            .insert({
+              restaurant_id: userId,
+              name: metadata.display_name || 'New Restaurant',
+              cuisine: metadata.food_type || 'Not specified',
+              price_range: '$'
+            });
             
-          if (!existingProfile) {
-            console.log("Creating new profile for user:", userId);
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .insert({
-                id: userId,
-                user_type: userType,
-                display_name: metadata.display_name || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              });
-            
-            if (profileError) {
-              console.error("Error creating profile:", profileError);
-            } else {
-              console.log("Created new profile with user type:", userType);
-            }
+          if (detailsError) {
+            console.error("Error creating restaurant details:", detailsError);
           } else {
-            console.log("Profile already exists for user:", userId);
+            console.log("Restaurant details created successfully");
           }
           
-          // For restaurant users, create restaurant details
-          if (userType === 'restaurant') {
-            console.log("Creating restaurant details for:", userId, "with data:", metadata);
+          // Create restaurant location if address data exists
+          if (metadata.address) {
+            console.log("Creating restaurant location with address:", metadata.address);
             
-            const { error: detailsError } = await supabase
-              .from('restaurant_details')
+            const { error: locationError } = await supabase
+              .from('restaurant_locations')
               .insert({
                 restaurant_id: userId,
-                name: metadata.display_name || 'New Restaurant',
-                cuisine: metadata.food_type || 'Not specified',
-                price_range: '$'
+                address: metadata.address,
+                latitude: metadata.latitude || 0,
+                longitude: metadata.longitude || 0
               });
               
-            if (detailsError) {
-              console.error("Error creating restaurant details:", detailsError);
+            if (locationError) {
+              console.error("Error creating restaurant location:", locationError);
             } else {
-              console.log("Restaurant details created successfully");
-            }
-            
-            // Create restaurant location if address data exists
-            if (metadata.address) {
-              console.log("Creating restaurant location with address:", metadata.address);
-              console.log("Coordinates:", metadata.latitude, metadata.longitude);
-              
-              const { error: locationError } = await supabase
-                .from('restaurant_locations')
-                .insert({
-                  restaurant_id: userId,
-                  address: metadata.address,
-                  latitude: metadata.latitude || 0,
-                  longitude: metadata.longitude || 0
-                });
-                
-              if (locationError) {
-                console.error("Error creating restaurant location:", locationError);
-              } else {
-                console.log("Restaurant location created successfully");
-              }
+              console.log("Restaurant location created successfully");
             }
           }
-        } else {
-          console.log("User is already authenticated, proceeding with normal flow");
         }
       } catch (err) {
         console.error("Error in profile/details creation:", err);
