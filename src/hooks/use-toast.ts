@@ -2,7 +2,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useToast as useShadcnToast } from "@/components/ui/use-toast";
 
-type ToastOptions = Parameters<ReturnType<typeof useShadcnToast>["toast"]>[0];
+// Define a more specific type for toast options to ensure TypeScript recognizes the properties
+interface ToastOptions {
+  title?: string;
+  description?: string;
+  [key: string]: any; // Allow other properties
+}
 
 /**
  * Enhanced toast hook with rate limiting and stabilization
@@ -32,7 +37,7 @@ export function useToast() {
   // Rate-limited toast function
   const toast = useMemo(() => {
     return (options: ToastOptions) => {
-      const toastKey = `${options.title}-${options.description}`;
+      const toastKey = `${options.title || ''}-${options.description || ''}`;
       const now = Date.now();
       
       // Prevent duplicate toasts within 5 seconds
