@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +28,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(currentSession?.user ?? null);
         
         // For signup or login events, ensure we have a profile
-        if (currentSession && (event === 'SIGNED_IN' || event === 'SIGNED_UP')) {
+        if (currentSession && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
           // Delay profile check slightly to avoid race conditions
           setTimeout(async () => {
             await getUserTypeFromSession(currentSession);
