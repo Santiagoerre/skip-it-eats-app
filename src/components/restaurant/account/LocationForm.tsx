@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Check, MapIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RestaurantLocation } from "@/services/restaurantService";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { 
   getAddressSuggestions, 
   getCoordinatesForAddress, 
@@ -51,6 +51,7 @@ const LocationForm = ({
   const leafletMarkerRef = useRef<L.Marker | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   // Fix Leaflet icon paths that are broken in production builds
   useEffect(() => {
@@ -180,124 +181,53 @@ const LocationForm = ({
 
   // Initialize the Leaflet map when dialog opens
   useEffect(() => {
-    if (!isMapDialogOpen || !mapContainerRef.current) return;
-
-    // If we already have a map instance, clean it up
-    if (leafletMapRef.current) {
-      leafletMapRef.current.remove();
-      leafletMapRef.current = null;
+    if (!isMapDialogOpen) {
+      setMapReady(false);
+      return;
     }
-    
-    // Get the container and make sure it's ready
-    const container = mapContainerRef.current;
-    if (!container) return;
-    
-    // Set initial map center
-    const initialLat = currentLatitude || 40.7128; // Default to NYC if no coordinates
-    const initialLng = currentLongitude || -74.0060;
-    
-    try {
-      // Create the map
-      const map = L.map(container).setView([initialLat, initialLng], 13);
-      leafletMapRef.current = map;
-      
-      // Add tile layer (OpenStreetMap)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
-      
-      // Add a marker if we have coordinates
-      if (currentLatitude !== 0 && currentLongitude !== 0) {
-        const marker = L.marker([currentLatitude, currentLongitude], {
-          draggable: true
-        }).addTo(map);
-        leafletMarkerRef.current = marker;
-        
-        // Handle marker drag events
-        marker.on('dragend', async function(e) {
-          const marker = e.target;
-          const position = marker.getLatLng();
-          const newLat = position.lat;
-          const newLng = position.lng;
-          
-          setCurrentLatitude(newLat);
-          setCurrentLongitude(newLng);
-          
-          // Call the parent callback if provided
-          if (onCoordinatesChange) {
-            onCoordinatesChange(newLat, newLng);
-          }
-          
-          setIsValidated(true);
-          
-          // Get address from coordinates
-          try {
-            const newAddress = await getAddressFromCoordinates(newLat, newLng);
-            if (newAddress) {
-              onAddressChange(newAddress);
-            }
-          } catch (error) {
-            console.error("Failed to get address from coordinates:", error);
-          }
-        });
-      } else {
-        // If no marker yet, create one at the center
-        const marker = L.marker([initialLat, initialLng], {
-          draggable: true
-        }).addTo(map);
-        leafletMarkerRef.current = marker;
-        
-        // Handle marker drag events
-        marker.on('dragend', async function(e) {
-          const marker = e.target;
-          const position = marker.getLatLng();
-          const newLat = position.lat;
-          const newLng = position.lng;
-          
-          setCurrentLatitude(newLat);
-          setCurrentLongitude(newLng);
-          
-          // Call the parent callback if provided
-          if (onCoordinatesChange) {
-            onCoordinatesChange(newLat, newLng);
-          }
-          
-          setIsValidated(true);
-          
-          // Get address from coordinates
-          try {
-            const newAddress = await getAddressFromCoordinates(newLat, newLng);
-            if (newAddress) {
-              onAddressChange(newAddress);
-            }
-          } catch (error) {
-            console.error("Failed to get address from coordinates:", error);
-          }
-        });
+
+    // Set a short delay to ensure the DOM is fully ready
+    const initTimeout = setTimeout(() => {
+      if (!mapContainerRef.current) {
+        console.error("Map container ref is not available");
+        return;
+      }
+
+      // If we already have a map instance, clean it up
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
       }
       
-      // Handle map click events to move marker
-      map.on('click', async function(e) {
-        const newLat = e.latlng.lat;
-        const newLng = e.latlng.lng;
+      // Get the container and make sure it's ready
+      const container = mapContainerRef.current;
+      if (!container) {
+        console.error("Map container is not available after timeout");
+        return;
+      }
+      
+      // Add a specific height to the container to ensure it's visible
+      container.style.height = '300px';
+      
+      // Set initial map center
+      const initialLat = currentLatitude || 40.7128; // Default to NYC if no coordinates
+      const initialLng = currentLongitude || -74.0060;
+      
+      try {
+        console.log("Initializing map with center:", initialLat, initialLng);
         
-        // Update our coordinates
-        setCurrentLatitude(newLat);
-        setCurrentLongitude(newLng);
+        // Create the map
+        const map = L.map(container).setView([initialLat, initialLng], 13);
+        leafletMapRef.current = map;
         
-        // Call the parent callback if provided
-        if (onCoordinatesChange) {
-          onCoordinatesChange(newLat, newLng);
-        }
+        // Add tile layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
         
-        setIsValidated(true);
-        
-        // Move the marker
-        if (leafletMarkerRef.current) {
-          leafletMarkerRef.current.setLatLng([newLat, newLng]);
-        } else {
-          // Create new marker if it doesn't exist
-          const marker = L.marker([newLat, newLng], {
+        // Add a marker if we have coordinates
+        if (currentLatitude !== 0 && currentLongitude !== 0) {
+          const marker = L.marker([currentLatitude, currentLongitude], {
             draggable: true
           }).addTo(map);
           leafletMarkerRef.current = marker;
@@ -306,22 +236,56 @@ const LocationForm = ({
           marker.on('dragend', async function(e) {
             const marker = e.target;
             const position = marker.getLatLng();
-            const posLat = position.lat;
-            const posLng = position.lng;
+            const newLat = position.lat;
+            const newLng = position.lng;
             
-            setCurrentLatitude(posLat);
-            setCurrentLongitude(posLng);
+            setCurrentLatitude(newLat);
+            setCurrentLongitude(newLng);
             
             // Call the parent callback if provided
             if (onCoordinatesChange) {
-              onCoordinatesChange(posLat, posLng);
+              onCoordinatesChange(newLat, newLng);
             }
             
             setIsValidated(true);
             
             // Get address from coordinates
             try {
-              const newAddress = await getAddressFromCoordinates(posLat, posLng);
+              const newAddress = await getAddressFromCoordinates(newLat, newLng);
+              if (newAddress) {
+                onAddressChange(newAddress);
+              }
+            } catch (error) {
+              console.error("Failed to get address from coordinates:", error);
+            }
+          });
+        } else {
+          // If no marker yet, create one at the center
+          const marker = L.marker([initialLat, initialLng], {
+            draggable: true
+          }).addTo(map);
+          leafletMarkerRef.current = marker;
+          
+          // Handle marker drag events
+          marker.on('dragend', async function(e) {
+            const marker = e.target;
+            const position = marker.getLatLng();
+            const newLat = position.lat;
+            const newLng = position.lng;
+            
+            setCurrentLatitude(newLat);
+            setCurrentLongitude(newLng);
+            
+            // Call the parent callback if provided
+            if (onCoordinatesChange) {
+              onCoordinatesChange(newLat, newLng);
+            }
+            
+            setIsValidated(true);
+            
+            // Get address from coordinates
+            try {
+              const newAddress = await getAddressFromCoordinates(newLat, newLng);
               if (newAddress) {
                 onAddressChange(newAddress);
               }
@@ -331,35 +295,94 @@ const LocationForm = ({
           });
         }
         
-        // Get address from coordinates
-        try {
-          const newAddress = await getAddressFromCoordinates(newLat, newLng);
-          if (newAddress) {
-            onAddressChange(newAddress);
+        // Handle map click events to move marker
+        map.on('click', async function(e) {
+          const newLat = e.latlng.lat;
+          const newLng = e.latlng.lng;
+          
+          // Update our coordinates
+          setCurrentLatitude(newLat);
+          setCurrentLongitude(newLng);
+          
+          // Call the parent callback if provided
+          if (onCoordinatesChange) {
+            onCoordinatesChange(newLat, newLng);
           }
-        } catch (error) {
-          console.error("Failed to get address from coordinates:", error);
-        }
-      });
-      
-      // Update map size when container becomes visible
-      setTimeout(() => {
-        if (leafletMapRef.current) {
-          leafletMapRef.current.invalidateSize();
-        }
-      }, 100);
-      
-    } catch (error) {
-      console.error("Error initializing map:", error);
-      toast({
-        title: "Map Error",
-        description: "Failed to initialize the map. Please try again.",
-        variant: "destructive",
-      });
-    }
+          
+          setIsValidated(true);
+          
+          // Move the marker
+          if (leafletMarkerRef.current) {
+            leafletMarkerRef.current.setLatLng([newLat, newLng]);
+          } else {
+            // Create new marker if it doesn't exist
+            const marker = L.marker([newLat, newLng], {
+              draggable: true
+            }).addTo(map);
+            leafletMarkerRef.current = marker;
+            
+            // Handle marker drag events
+            marker.on('dragend', async function(e) {
+              const marker = e.target;
+              const position = marker.getLatLng();
+              const posLat = position.lat;
+              const posLng = position.lng;
+              
+              setCurrentLatitude(posLat);
+              setCurrentLongitude(posLng);
+              
+              // Call the parent callback if provided
+              if (onCoordinatesChange) {
+                onCoordinatesChange(posLat, posLng);
+              }
+              
+              setIsValidated(true);
+              
+              // Get address from coordinates
+              try {
+                const newAddress = await getAddressFromCoordinates(posLat, posLng);
+                if (newAddress) {
+                  onAddressChange(newAddress);
+                }
+              } catch (error) {
+                console.error("Failed to get address from coordinates:", error);
+              }
+            });
+          }
+          
+          // Get address from coordinates
+          try {
+            const newAddress = await getAddressFromCoordinates(newLat, newLng);
+            if (newAddress) {
+              onAddressChange(newAddress);
+            }
+          } catch (error) {
+            console.error("Failed to get address from coordinates:", error);
+          }
+        });
+
+        // Force map redraw after a short delay
+        setTimeout(() => {
+          if (leafletMapRef.current) {
+            console.log("Invalidating map size");
+            leafletMapRef.current.invalidateSize();
+          }
+          setMapReady(true);
+        }, 300);
+        
+      } catch (error) {
+        console.error("Error initializing map:", error);
+        toast({
+          title: "Map Error",
+          description: "Failed to initialize the map. Please try again.",
+          variant: "destructive",
+        });
+      }
+    }, 200); // Short delay to ensure DOM is ready
     
     // Cleanup function
     return () => {
+      clearTimeout(initTimeout);
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
@@ -367,19 +390,6 @@ const LocationForm = ({
       }
     };
   }, [isMapDialogOpen, currentLatitude, currentLongitude, onCoordinatesChange, onAddressChange, toast]);
-
-  // Function to update address from coordinates
-  const updateAddressFromCoordinates = async (lat: number, lng: number) => {
-    try {
-      const newAddress = await getAddressFromCoordinates(lat, lng);
-      if (newAddress) {
-        onAddressChange(newAddress);
-      }
-    } catch (error) {
-      console.error("Error getting address from coordinates:", error);
-      // Non-blocking error
-    }
-  };
 
   // Check if already validated on mount
   useEffect(() => {
@@ -441,8 +451,13 @@ const LocationForm = ({
                   </DialogDescription>
                 </DialogHeader>
                 <div className="w-full h-[300px] mt-2 border rounded-md overflow-hidden">
-                  <div ref={mapContainerRef} className="w-full h-full" />
+                  <div ref={mapContainerRef} className="w-full h-full" style={{ height: '300px' }} />
                 </div>
+                {!mapReady && (
+                  <div className="text-center py-2 text-sm text-muted-foreground">
+                    Initializing map...
+                  </div>
+                )}
               </DialogContent>
             </Dialog>
             
