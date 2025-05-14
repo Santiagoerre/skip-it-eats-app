@@ -94,6 +94,78 @@ export const signUp = async (
         console.error("Error during profile verification:", profileCheckError);
       }
       
+      // Additional verification for restaurant profiles
+      if (userType === 'restaurant') {
+        try {
+          console.log("Verifying restaurant details creation");
+          const { data: restaurantData, error: restaurantError } = await supabase
+            .from('restaurant_details')
+            .select('*')
+            .eq('restaurant_id', data.user.id)
+            .maybeSingle();
+            
+          if (restaurantError) {
+            console.warn("Error checking restaurant details:", restaurantError);
+          } else if (!restaurantData) {
+            console.warn("Restaurant details not found, attempting manual creation");
+            
+            // Manually create restaurant details if they don't exist
+            const { error: detailsError } = await supabase
+              .from('restaurant_details')
+              .insert([{
+                restaurant_id: data.user.id,
+                name: metadata.display_name || 'New Restaurant',
+                cuisine: metadata.food_type || 'Not specified',
+                price_range: '$',
+                description: 'Restaurant created manually on ' + new Date().toISOString()
+              }]);
+              
+            if (detailsError) {
+              console.error("Failed to manually create restaurant details:", detailsError);
+            } else {
+              console.log("Restaurant details manually created");
+            }
+          } else {
+            console.log("Restaurant details found:", restaurantData);
+          }
+          
+          // Check for restaurant location
+          if (metadata.address) {
+            const { data: locationData, error: locationError } = await supabase
+              .from('restaurant_locations')
+              .select('*')
+              .eq('restaurant_id', data.user.id)
+              .maybeSingle();
+              
+            if (locationError) {
+              console.warn("Error checking restaurant location:", locationError);
+            } else if (!locationData) {
+              console.warn("Restaurant location not found, attempting manual creation");
+              
+              // Manually create restaurant location if it doesn't exist
+              const { error: locationInsertError } = await supabase
+                .from('restaurant_locations')
+                .insert([{
+                  restaurant_id: data.user.id,
+                  address: metadata.address,
+                  latitude: metadata.latitude || 0,
+                  longitude: metadata.longitude || 0
+                }]);
+                
+              if (locationInsertError) {
+                console.error("Failed to manually create restaurant location:", locationInsertError);
+              } else {
+                console.log("Restaurant location manually created");
+              }
+            } else {
+              console.log("Restaurant location found:", locationData);
+            }
+          }
+        } catch (restaurantVerifyError) {
+          console.error("Error during restaurant verification:", restaurantVerifyError);
+        }
+      }
+      
       // Return the data with user's ID for access in the calling component
       return { data };
     }

@@ -44,6 +44,55 @@ const RestaurantSignUp = () => {
     };
   }, [resetErrors]);
 
+  const verifyRestaurantProfileCreation = async (userId: string): Promise<boolean> => {
+    console.log("Verifying restaurant profile creation for:", userId);
+    
+    try {
+      // Check if profile exists
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (profileError || !profileData) {
+        console.error("Profile verification failed:", profileError || "No profile found");
+        return false;
+      }
+      
+      // Check if restaurant details exist
+      const { data: detailsData, error: detailsError } = await supabase
+        .from('restaurant_details')
+        .select('*')
+        .eq('restaurant_id', userId)
+        .maybeSingle();
+        
+      if (detailsError || !detailsData) {
+        console.error("Restaurant details verification failed:", detailsError || "No details found");
+        return false;
+      }
+      
+      // Check if location exists if address was provided
+      if (address) {
+        const { data: locationData, error: locationError } = await supabase
+          .from('restaurant_locations')
+          .select('*')
+          .eq('restaurant_id', userId)
+          .maybeSingle();
+          
+        if (locationError || !locationData) {
+          console.error("Restaurant location verification failed:", locationError || "No location found");
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error during restaurant profile verification:", error);
+      return false;
+    }
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Restaurant signup form submitted with:", { 
@@ -111,6 +160,37 @@ const RestaurantSignUp = () => {
       
       console.log("Restaurant account created successfully:", data.user.id);
       
+      // Verify that restaurant profile was created successfully
+      const retryVerification = async (attempts = 3, delay = 1000): Promise<boolean> => {
+        for (let i = 0; i < attempts; i++) {
+          console.log(`Verification attempt ${i + 1}/${attempts}`);
+          const isProfileCreated = await verifyRestaurantProfileCreation(data.user.id);
+          
+          if (isProfileCreated) {
+            console.log("Restaurant profile verified successfully");
+            return true;
+          }
+          
+          console.log(`Verification attempt ${i + 1} failed, waiting ${delay}ms before retrying`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 1.5; // Increase delay with each attempt
+        }
+        
+        console.error("All verification attempts failed");
+        return false;
+      };
+      
+      const profileVerified = await retryVerification();
+      
+      if (!profileVerified) {
+        console.warn("Could not verify restaurant profile creation, but continuing...");
+        toast({
+          title: "Warning",
+          description: "Your account was created, but there might be an issue with your restaurant profile. We will try to fix it.",
+          variant: "default",
+        });
+      }
+      
       // Handle image upload if an image was provided
       if (imageFile && data.user.id) {
         console.log("Uploading restaurant image");
@@ -128,7 +208,7 @@ const RestaurantSignUp = () => {
             toast({
               title: "Image Upload Warning",
               description: "Your account was created, but there was an issue uploading your image.",
-              variant: "default", // Changed from "warning" to "default"
+              variant: "default",
             });
           } else {
             console.log("Image uploaded successfully");
