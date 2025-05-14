@@ -11,6 +11,7 @@ export const useUserType = () => {
   // Helper function to safely get user type
   const getUserTypeFromSession = useCallback(async (currentSession: Session | null) => {
     if (!currentSession?.user) {
+      console.log("No user in session, setting userType to null");
       setUserType(null);
       return;
     }

@@ -30,15 +30,23 @@ const UserTypeSelection = () => {
     setSelectedType(type);
     setIsLoading(true);
     
-    // Navigate to the appropriate signup page immediately without timeout
-    if (type === "customer") {
-      console.log("UserTypeSelection - Navigating to customer signup");
-      navigate("/signup/customer");
-    } else {
-      console.log("UserTypeSelection - Navigating to restaurant signup");
-      navigate("/signup/restaurant");
+    try {
+      // Navigate to the appropriate signup page immediately without timeout
+      if (type === "customer") {
+        console.log("UserTypeSelection - Navigating to customer signup");
+        navigate("/signup/customer");
+      } else if (type === "restaurant") {
+        console.log("UserTypeSelection - Navigating to restaurant signup");
+        navigate("/signup/restaurant");
+      } else {
+        console.error("UserTypeSelection - Invalid user type selected:", type);
+      }
+    } catch (error) {
+      console.error("UserTypeSelection - Navigation error:", error);
+    } finally {
+      // Always make sure to clear loading state
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
