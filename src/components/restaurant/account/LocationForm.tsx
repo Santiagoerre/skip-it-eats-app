@@ -21,6 +21,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// Fix Leaflet icon paths that are broken in production builds
+useEffect(() => {
+  // Only run once on component mount
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+  });
+}, []);
 
 interface LocationFormProps {
   location: RestaurantLocation | null;
@@ -46,6 +59,8 @@ const LocationForm = ({
   const [isMapDialogOpen, setIsMapDialogOpen] = useState(false);
   const [lastRequestTime, setLastRequestTime] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const leafletMarkerRef = useRef<L.Marker | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -164,65 +179,47 @@ const LocationForm = ({
     };
   }, []);
 
-  // Initialize the map when dialog opens
+  // Initialize the Leaflet map when dialog opens
   useEffect(() => {
     if (!isMapDialogOpen || !mapContainerRef.current) return;
 
-    const loadMap = async () => {
-      try {
-        const mapContainer = mapContainerRef.current;
-        if (!mapContainer) return;
+    // If we already have a map instance, clean it up
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove();
+      leafletMapRef.current = null;
+    }
+    
+    // Get the container and make sure it's ready
+    const container = mapContainerRef.current;
+    if (!container) return;
+    
+    // Set initial map center
+    const initialLat = currentLatitude || 40.7128; // Default to NYC if no coordinates
+    const initialLng = currentLongitude || -74.0060;
+    
+    try {
+      // Create the map
+      const map = L.map(container).setView([initialLat, initialLng], 13);
+      leafletMapRef.current = map;
+      
+      // Add tile layer (OpenStreetMap)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      // Add a marker if we have coordinates
+      if (currentLatitude !== 0 && currentLongitude !== 0) {
+        const marker = L.marker([currentLatitude, currentLongitude], {
+          draggable: true
+        }).addTo(map);
+        leafletMarkerRef.current = marker;
         
-        // Clear previous content
-        mapContainer.innerHTML = '';
-        
-        // Create map container
-        const mapElement = document.createElement('div');
-        mapElement.className = 'w-full h-full bg-gray-100 relative';
-        mapContainer.appendChild(mapElement);
-        
-        // Center coordinates (use existing or default to a central location)
-        const centerLat = currentLatitude || 40.7128; // Default to New York
-        const centerLng = currentLongitude || -74.0060;
-        
-        // If we have coordinates, show a marker
-        if (currentLatitude && currentLongitude) {
-          const marker = document.createElement('div');
-          marker.className = 'absolute z-10 transform -translate-x-1/2 -translate-y-1/2';
-          marker.style.left = '50%';
-          marker.style.top = '50%';
-          marker.innerHTML = `<svg class="h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>`;
-          
-          mapElement.appendChild(marker);
-          
-          // Show coordinates
-          const coordInfo = document.createElement('div');
-          coordInfo.className = 'absolute bottom-2 left-2 bg-white p-2 rounded shadow-sm text-xs';
-          coordInfo.textContent = `Lat: ${currentLatitude.toFixed(6)}, Lng: ${currentLongitude.toFixed(6)}`;
-          mapElement.appendChild(coordInfo);
-        }
-        
-        // Create a simple instructions overlay
-        const instructions = document.createElement('div');
-        instructions.className = 'absolute top-2 left-2 right-2 bg-white p-2 rounded text-center text-sm';
-        instructions.textContent = 'Click anywhere on the map to set your location';
-        mapElement.appendChild(instructions);
-        
-        // Handle click on map
-        mapElement.addEventListener('click', (e) => {
-          if (e.target === instructions) return; // Don't trigger when clicking on instructions
-          
-          // Calculate relative position in the container to adjust coordinates
-          const rect = mapElement.getBoundingClientRect();
-          const relX = (e.clientX - rect.left) / rect.width - 0.5; // -0.5 to 0.5
-          const relY = (e.clientY - rect.top) / rect.height - 0.5; // -0.5 to 0.5
-          
-          // Generate new coordinates (simulate a real map)
-          const newLat = centerLat - relY * 0.2; // Increase multiplier for bigger coordinate changes
-          const newLng = centerLng + relX * 0.4;
+        // Handle marker drag events
+        marker.on('dragend', async function(e) {
+          const marker = e.target;
+          const position = marker.getLatLng();
+          const newLat = position.lat;
+          const newLng = position.lng;
           
           setCurrentLatitude(newLat);
           setCurrentLongitude(newLng);
@@ -234,24 +231,143 @@ const LocationForm = ({
           
           setIsValidated(true);
           
-          // Attempt to reverse geocode the new coordinates
-          updateAddressFromCoordinates(newLat, newLng);
-          
-          // Reload the map with new marker
-          loadMap();
+          // Get address from coordinates
+          try {
+            const newAddress = await getAddressFromCoordinates(newLat, newLng);
+            if (newAddress) {
+              onAddressChange(newAddress);
+            }
+          } catch (error) {
+            console.error("Failed to get address from coordinates:", error);
+          }
         });
-      } catch (error) {
-        console.error("Error loading map:", error);
-        toast({
-          title: "Map Error",
-          description: "Could not load the map. Please try again.",
-          variant: "destructive",
+      } else {
+        // If no marker yet, create one at the center
+        const marker = L.marker([initialLat, initialLng], {
+          draggable: true
+        }).addTo(map);
+        leafletMarkerRef.current = marker;
+        
+        // Handle marker drag events
+        marker.on('dragend', async function(e) {
+          const marker = e.target;
+          const position = marker.getLatLng();
+          const newLat = position.lat;
+          const newLng = position.lng;
+          
+          setCurrentLatitude(newLat);
+          setCurrentLongitude(newLng);
+          
+          // Call the parent callback if provided
+          if (onCoordinatesChange) {
+            onCoordinatesChange(newLat, newLng);
+          }
+          
+          setIsValidated(true);
+          
+          // Get address from coordinates
+          try {
+            const newAddress = await getAddressFromCoordinates(newLat, newLng);
+            if (newAddress) {
+              onAddressChange(newAddress);
+            }
+          } catch (error) {
+            console.error("Failed to get address from coordinates:", error);
+          }
         });
       }
-    };
+      
+      // Handle map click events to move marker
+      map.on('click', async function(e) {
+        const newLat = e.latlng.lat;
+        const newLng = e.latlng.lng;
+        
+        // Update our coordinates
+        setCurrentLatitude(newLat);
+        setCurrentLongitude(newLng);
+        
+        // Call the parent callback if provided
+        if (onCoordinatesChange) {
+          onCoordinatesChange(newLat, newLng);
+        }
+        
+        setIsValidated(true);
+        
+        // Move the marker
+        if (leafletMarkerRef.current) {
+          leafletMarkerRef.current.setLatLng([newLat, newLng]);
+        } else {
+          // Create new marker if it doesn't exist
+          const marker = L.marker([newLat, newLng], {
+            draggable: true
+          }).addTo(map);
+          leafletMarkerRef.current = marker;
+          
+          // Handle marker drag events
+          marker.on('dragend', async function(e) {
+            const marker = e.target;
+            const position = marker.getLatLng();
+            const posLat = position.lat;
+            const posLng = position.lng;
+            
+            setCurrentLatitude(posLat);
+            setCurrentLongitude(posLng);
+            
+            // Call the parent callback if provided
+            if (onCoordinatesChange) {
+              onCoordinatesChange(posLat, posLng);
+            }
+            
+            setIsValidated(true);
+            
+            // Get address from coordinates
+            try {
+              const newAddress = await getAddressFromCoordinates(posLat, posLng);
+              if (newAddress) {
+                onAddressChange(newAddress);
+              }
+            } catch (error) {
+              console.error("Failed to get address from coordinates:", error);
+            }
+          });
+        }
+        
+        // Get address from coordinates
+        try {
+          const newAddress = await getAddressFromCoordinates(newLat, newLng);
+          if (newAddress) {
+            onAddressChange(newAddress);
+          }
+        } catch (error) {
+          console.error("Failed to get address from coordinates:", error);
+        }
+      });
+      
+      // Update map size when container becomes visible
+      setTimeout(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      }, 100);
+      
+    } catch (error) {
+      console.error("Error initializing map:", error);
+      toast({
+        title: "Map Error",
+        description: "Failed to initialize the map. Please try again.",
+        variant: "destructive",
+      });
+    }
     
-    loadMap();
-  }, [isMapDialogOpen, currentLatitude, currentLongitude, onCoordinatesChange, toast]);
+    // Cleanup function
+    return () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+        leafletMarkerRef.current = null;
+      }
+    };
+  }, [isMapDialogOpen, currentLatitude, currentLongitude, onCoordinatesChange, onAddressChange, toast]);
 
   // Function to update address from coordinates
   const updateAddressFromCoordinates = async (lat: number, lng: number) => {
@@ -322,7 +438,7 @@ const LocationForm = ({
                 <DialogHeader>
                   <DialogTitle>Choose Location on Map</DialogTitle>
                   <DialogDescription>
-                    Click anywhere on the map to set your restaurant location.
+                    Click anywhere on the map to set your restaurant location or drag the marker.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="w-full h-[300px] mt-2 border rounded-md overflow-hidden">

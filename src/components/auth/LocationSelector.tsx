@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,20 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { getAddressSuggestions, getCoordinatesForAddress, getAddressFromCoordinates } from "@/utils/geocoding";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// Fix Leaflet icon paths that are broken in production builds
+useEffect(() => {
+  // Only run once on component mount
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+  });
+}, []);
 
 interface LocationSelectorProps {
   address: string;
@@ -47,6 +62,8 @@ const LocationSelector = ({
   const [isMapDialogOpen, setIsMapDialogOpen] = useState(false);
   const [lastRequestTime, setLastRequestTime] = useState(0);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const leafletMarkerRef = useRef<L.Marker | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -84,45 +101,9 @@ const LocationSelector = ({
     setLastRequestTime(now);
 
     try {
-      console.log(`Fetching address suggestions for: ${input}`);
-      
-      // Using Nominatim OpenStreetMap API with proper headers
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=5`,
-        {
-          headers: {
-            "Accept-Language": "en-US,en",
-            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header to comply with Nominatim's ToS
-          }
-        }
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          const addresses = data.map((item: any) => item.display_name);
-          setSuggestions(addresses);
-          setShowSuggestions(addresses.length > 0);
-          
-          // Cache the results
-          suggestionCache.set(input, addresses);
-          
-          console.log(`Found ${addresses.length} suggestions`);
-        } else {
-          console.warn("Received data is not an array:", data);
-          setSuggestions([]);
-          setShowSuggestions(false);
-        }
-      } else {
-        console.error("Error fetching address suggestions, status:", response.status);
-        setSuggestions([]);
-        setShowSuggestions(false);
-        toast({
-          title: "Error fetching suggestions",
-          description: `Server responded with status ${response.status}`,
-          variant: "destructive",
-        });
-      }
+      const addresses = await getAddressSuggestions(input);
+      setSuggestions(addresses);
+      setShowSuggestions(addresses.length > 0);
     } catch (error) {
       console.error("Error fetching address suggestions:", error);
       setSuggestions([]);
@@ -148,36 +129,13 @@ const LocationSelector = ({
     
     try {
       console.log(`Validating address: ${address}`);
+      const coordinates = await getCoordinatesForAddress(address);
       
-      // Using Nominatim OpenStreetMap API with proper headers
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-        {
-          headers: {
-            "Accept-Language": "en-US,en",
-            "User-Agent": "SkipItApp/1.0" // Adding a User-Agent header
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Network error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (Array.isArray(data) && data.length > 0) {
-        const newLat = parseFloat(data[0].lat);
-        const newLng = parseFloat(data[0].lon);
-        
-        if (isNaN(newLat) || isNaN(newLng)) {
-          throw new Error("Invalid coordinates returned from geocoding service");
-        }
-        
-        setLatitude(newLat);
-        setLongitude(newLng);
+      if (coordinates) {
+        setLatitude(coordinates.lat);
+        setLongitude(coordinates.lng);
         setIsValidated(true);
-        console.log("Address validated successfully:", { address, latitude: newLat, longitude: newLng });
+        console.log("Address validated successfully:", { address, latitude: coordinates.lat, longitude: coordinates.lng });
         
         toast({
           title: "Address Validated",
@@ -240,112 +198,175 @@ const LocationSelector = ({
     };
   }, []);
 
-  // Initialize the map when dialog opens
+  // Initialize the Leaflet map when dialog opens
   useEffect(() => {
     if (!isMapDialogOpen || !mapContainerRef.current) return;
 
-    const loadMap = async () => {
-      try {
-        const mapContainer = mapContainerRef.current;
-        if (!mapContainer) return;
+    // If we already have a map instance, clean it up
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove();
+      leafletMapRef.current = null;
+    }
+    
+    // Get the container and make sure it's ready
+    const container = mapContainerRef.current;
+    if (!container) return;
+    
+    // Set initial map center
+    const initialLat = latitude || 40.7128; // Default to NYC if no coordinates
+    const initialLng = longitude || -74.0060;
+    
+    try {
+      // Create the map
+      const map = L.map(container).setView([initialLat, initialLng], 13);
+      leafletMapRef.current = map;
+      
+      // Add tile layer (OpenStreetMap)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      // Add a marker if we have coordinates
+      if (latitude && longitude) {
+        const marker = L.marker([latitude, longitude], {
+          draggable: true
+        }).addTo(map);
+        leafletMarkerRef.current = marker;
         
-        // Clear previous content
-        mapContainer.innerHTML = '';
-        
-        // Create map container
-        const mapElement = document.createElement('div');
-        mapElement.className = 'w-full h-full bg-gray-100 relative';
-        mapContainer.appendChild(mapElement);
-        
-        // Center coordinates (use existing or default to a central location)
-        const centerLat = latitude || 40.7128; // Default to New York
-        const centerLng = longitude || -74.0060;
-        
-        // If we have coordinates, show a marker
-        if (latitude && longitude) {
-          const marker = document.createElement('div');
-          marker.className = 'absolute z-10 transform -translate-x-1/2 -translate-y-1/2';
-          marker.style.left = '50%';
-          marker.style.top = '50%';
-          marker.innerHTML = `<svg class="h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>`;
-          
-          mapElement.appendChild(marker);
-          
-          // Show coordinates
-          const coordInfo = document.createElement('div');
-          coordInfo.className = 'absolute bottom-2 left-2 bg-white p-2 rounded shadow-sm text-xs';
-          coordInfo.textContent = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
-          mapElement.appendChild(coordInfo);
-        }
-        
-        // Create a simple instructions overlay
-        const instructions = document.createElement('div');
-        instructions.className = 'absolute top-2 left-2 right-2 bg-white p-2 rounded text-center text-sm';
-        instructions.textContent = 'Click anywhere on the map to set your location';
-        mapElement.appendChild(instructions);
-        
-        // Handle click on map
-        mapElement.addEventListener('click', (e) => {
-          if (e.target === instructions) return; // Don't trigger when clicking on instructions
-          
-          // Calculate relative position in the container to adjust coordinates
-          const rect = mapElement.getBoundingClientRect();
-          const relX = (e.clientX - rect.left) / rect.width - 0.5; // -0.5 to 0.5
-          const relY = (e.clientY - rect.top) / rect.height - 0.5; // -0.5 to 0.5
-          
-          // Generate new coordinates (simulate a real map)
-          const newLat = centerLat - relY * 0.2; // Increase multiplier for bigger coordinate changes
-          const newLng = centerLng + relX * 0.4;
+        // Handle marker drag events
+        marker.on('dragend', async function(e) {
+          const marker = e.target;
+          const position = marker.getLatLng();
+          const newLat = position.lat;
+          const newLng = position.lng;
           
           setLatitude(newLat);
           setLongitude(newLng);
           setIsValidated(true);
           
-          // Attempt to reverse geocode the new coordinates
-          fetchAddressFromCoordinates(newLat, newLng);
-          
-          // Reload the map with new marker
-          loadMap();
+          // Get address from coordinates
+          try {
+            const newAddress = await getAddressFromCoordinates(newLat, newLng);
+            if (newAddress) {
+              setAddress(newAddress);
+            }
+          } catch (error) {
+            console.error("Failed to get address from coordinates:", error);
+          }
         });
-      } catch (error) {
-        console.error("Error loading map:", error);
-        toast({
-          title: "Map Error",
-          description: "Could not load the map. Please try again.",
-          variant: "destructive",
+      } else {
+        // If no marker yet, create one at the center
+        const marker = L.marker([initialLat, initialLng], {
+          draggable: true
+        }).addTo(map);
+        leafletMarkerRef.current = marker;
+        
+        // Handle marker drag events
+        marker.on('dragend', async function(e) {
+          const marker = e.target;
+          const position = marker.getLatLng();
+          const newLat = position.lat;
+          const newLng = position.lng;
+          
+          setLatitude(newLat);
+          setLongitude(newLng);
+          setIsValidated(true);
+          
+          // Get address from coordinates
+          try {
+            const newAddress = await getAddressFromCoordinates(newLat, newLng);
+            if (newAddress) {
+              setAddress(newAddress);
+            }
+          } catch (error) {
+            console.error("Failed to get address from coordinates:", error);
+          }
         });
       }
-    };
+      
+      // Handle map click events to move marker
+      map.on('click', async function(e) {
+        const newLat = e.latlng.lat;
+        const newLng = e.latlng.lng;
+        
+        // Update our coordinates
+        setLatitude(newLat);
+        setLongitude(newLng);
+        setIsValidated(true);
+        
+        // Move the marker
+        if (leafletMarkerRef.current) {
+          leafletMarkerRef.current.setLatLng([newLat, newLng]);
+        } else {
+          // Create new marker if it doesn't exist
+          const marker = L.marker([newLat, newLng], {
+            draggable: true
+          }).addTo(map);
+          leafletMarkerRef.current = marker;
+          
+          // Handle marker drag events
+          marker.on('dragend', async function(e) {
+            const marker = e.target;
+            const position = marker.getLatLng();
+            setLatitude(position.lat);
+            setLongitude(position.lng);
+            setIsValidated(true);
+            
+            // Get address from coordinates
+            try {
+              const newAddress = await getAddressFromCoordinates(position.lat, position.lng);
+              if (newAddress) {
+                setAddress(newAddress);
+              }
+            } catch (error) {
+              console.error("Failed to get address from coordinates:", error);
+            }
+          });
+        }
+        
+        // Get address from coordinates
+        try {
+          const newAddress = await getAddressFromCoordinates(newLat, newLng);
+          if (newAddress) {
+            setAddress(newAddress);
+          }
+        } catch (error) {
+          console.error("Failed to get address from coordinates:", error);
+        }
+      });
+      
+      // Update map size when container becomes visible
+      setTimeout(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      }, 100);
+      
+    } catch (error) {
+      console.error("Error initializing map:", error);
+      toast({
+        title: "Map Error",
+        description: "Failed to initialize the map. Please try again.",
+        variant: "destructive",
+      });
+    }
     
-    loadMap();
-  }, [isMapDialogOpen, latitude, longitude, toast]);
+    // Cleanup function
+    return () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+        leafletMarkerRef.current = null;
+      }
+    };
+  }, [isMapDialogOpen, latitude, longitude, setLatitude, setLongitude, setAddress, toast]);
 
   // Function to get address from coordinates (reverse geocoding)
   const fetchAddressFromCoordinates = async (lat: number, lng: number) => {
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            "Accept-Language": "en-US,en",
-            "User-Agent": "SkipItApp/1.0"
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Network error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.display_name) {
-        setAddress(data.display_name);
-      } else {
-        console.warn("Could not reverse geocode the coordinates");
+      const newAddress = await getAddressFromCoordinates(lat, lng);
+      if (newAddress) {
+        setAddress(newAddress);
       }
     } catch (error) {
       console.error("Error reverse geocoding:", error);
@@ -386,7 +407,7 @@ const LocationSelector = ({
               <DialogHeader>
                 <DialogTitle>Choose Location on Map</DialogTitle>
                 <DialogDescription>
-                  Click anywhere on the map to set your restaurant location.
+                  Click anywhere on the map to set your restaurant location or drag the marker.
                 </DialogDescription>
               </DialogHeader>
               <div className="w-full h-[300px] mt-2 border rounded-md overflow-hidden">
