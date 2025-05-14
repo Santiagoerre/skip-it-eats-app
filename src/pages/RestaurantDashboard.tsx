@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Menu, ClipboardList, User } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/components/ui/use-toast";
 import MenuManagement from "@/components/restaurant/MenuManagement";
 import OrdersManagement from "@/components/restaurant/OrdersManagement";

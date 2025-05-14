@@ -1,14 +1,14 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth";
+import { UserType } from "@/contexts/auth/types";
 
 const UserTypeSelection = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedType, setSelectedType] = useState<"customer" | "restaurant" | null>(null);
+  const [selectedType, setSelectedType] = useState<UserType | null>(null);
   const { session, userType } = useAuth();
   
   // Redirect if user is already logged in and has a type
@@ -23,7 +23,7 @@ const UserTypeSelection = () => {
     }
   }, [session, userType, navigate]);
 
-  const handleUserTypeSelection = (type: "customer" | "restaurant") => {
+  const handleUserTypeSelection = (type: UserType) => {
     setSelectedType(type);
     setIsLoading(true);
     

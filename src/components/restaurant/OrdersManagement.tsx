@@ -7,7 +7,7 @@ import OrdersTab from "./orders/OrdersTab";
 import { OrderStatus } from "./orders/types";
 import { OrderProps } from "./orders/OrderCard";
 import { fetchRestaurantOrders, updateOrderStatus } from "@/services/orderService";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { mockOrders } from "./orders/mockData";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

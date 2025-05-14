@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Clock, CheckCircle } from "lucide-react";
 import { fetchCustomerOrders } from "@/services/orderService";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/components/ui/use-toast";
 
 // Interface for order data
