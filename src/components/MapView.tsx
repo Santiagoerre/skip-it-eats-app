@@ -1,11 +1,13 @@
+
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Navigation, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRestaurants, fetchRestaurantLocation } from "@/services/restaurantService";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 interface Restaurant {
   id: string;
@@ -15,6 +17,7 @@ interface Restaurant {
   latitude?: number;
   longitude?: number;
   image_url?: string;
+  rating?: number;
 }
 
 interface MapViewProps {
@@ -23,15 +26,28 @@ interface MapViewProps {
 
 const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [userLocation, setUserLocation] = useState<GeolocationPosition | null>(null);
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const { toast } = useToast();
   const [mapError, setMapError] = useState<string | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const [mapInitialized, setMapInitialized] = useState(false);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [isGettingUserLocation, setIsGettingUserLocation] = useState(false);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
 
-  // Fetch restaurants data - not using React Query as we'll manually fetch and transform
+  // Fix Leaflet icon paths that are broken in production builds
+  useEffect(() => {
+    // Only run once on component mount
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+      iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+    });
+  }, []);
+
+  // Fetch restaurants data
   useEffect(() => {
     const fetchMapData = async () => {
       try {
@@ -105,7 +121,10 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         console.log("User location obtained:", position.coords);
-        setUserLocation(position);
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
         setIsGettingUserLocation(false);
         
         toast({
@@ -113,9 +132,10 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
           description: "We've found your current location",
         });
         
-        // If map is already initialized, update it
-        if (mapInitialized) {
-          renderMap();
+        // If map is already initialized, update user marker
+        if (leafletMapRef.current) {
+          updateUserMarker(position.coords.latitude, position.coords.longitude);
+          leafletMapRef.current.setView([position.coords.latitude, position.coords.longitude], 13);
         }
       },
       (error) => {
@@ -123,19 +143,13 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         setIsGettingUserLocation(false);
         
         // Create a default user location near Madrid for demo purposes
-        const fakePosition = {
-          coords: {
-            latitude: 40.4168,
-            longitude: -3.7038,
-            accuracy: 10,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null
-          },
-          timestamp: Date.now()
-        };
-        setUserLocation(fakePosition as GeolocationPosition);
+        const defaultLat = 40.4168;
+        const defaultLng = -3.7038;
+        
+        setUserLocation({
+          latitude: defaultLat,
+          longitude: defaultLng
+        });
         
         toast({
           title: "Using default location",
@@ -143,182 +157,176 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
           variant: "default",
         });
         
-        // If map is already initialized, update it
-        if (mapInitialized) {
-          renderMap();
+        // If map is already initialized, update with default location
+        if (leafletMapRef.current) {
+          updateUserMarker(defaultLat, defaultLng);
+          leafletMapRef.current.setView([defaultLat, defaultLng], 13);
         }
       }
     );
   };
 
+  // Create or update user location marker
+  const updateUserMarker = (lat: number, lng: number) => {
+    if (!leafletMapRef.current) return;
+    
+    // Create custom blue icon for user marker
+    const userIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLatLng([lat, lng]);
+    } else {
+      const marker = L.marker([lat, lng], { 
+        icon: userIcon,
+        zIndexOffset: 1000 // Ensure user marker is on top
+      }).addTo(leafletMapRef.current);
+      
+      marker.bindPopup("Your location").openPopup();
+      userMarkerRef.current = marker;
+      
+      // Add pulse animation to marker
+      const icon = marker.getElement();
+      if (icon) {
+        icon.classList.add('pulse-animation');
+      }
+    }
+  };
+
   // Initialize map after data is loaded
   useEffect(() => {
-    if (isMapLoading || !mapRef.current || mapInitialized) {
+    if (isMapLoading || !mapRef.current) {
       return;
     }
 
-    // Set a short delay to ensure DOM is ready
-    const timer = setTimeout(() => {
-      setIsMapLoading(false);
-      try {
-        renderMap();
-        setMapInitialized(true);
-      } catch (error) {
-        console.error('Error initializing map:', error);
-        setMapError('Unable to initialize map. Please try again later.');
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [isMapLoading, restaurants, userLocation, mapInitialized]);
-
-  const renderMap = () => {
-    if (!mapRef.current) return;
-    
-    console.log("Rendering map with", restaurants.length, "restaurants");
-    const mapContainer = mapRef.current;
-    mapContainer.innerHTML = '';
-    
-    // Create map wrapper with a proper background
-    const mapWrapper = document.createElement('div');
-    mapWrapper.className = 'relative bg-gray-100 rounded-lg w-full h-full overflow-hidden';
-    
-    // Create map UI
-    const mapUI = document.createElement('div');
-    mapUI.className = 'absolute inset-0 p-4';
-    
-    // Add a simple grid to represent the map (better visual)
-    const grid = document.createElement('div');
-    grid.className = 'absolute inset-0 grid grid-cols-10 grid-rows-10 z-0';
-    for (let i = 0; i < 100; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'border border-gray-200 opacity-20';
-      grid.appendChild(cell);
+    // Clean up previous map instance if exists
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove();
+      leafletMapRef.current = null;
+      userMarkerRef.current = null;
+      markersRef.current = [];
     }
-    mapUI.appendChild(grid);
-    
-    // Add restaurant markers
-    restaurants.forEach(restaurant => {
-      if (!restaurant.latitude || !restaurant.longitude) {
-        console.warn(`Restaurant ${restaurant.name} has invalid coordinates:`, { lat: restaurant.latitude, lng: restaurant.longitude });
-        return;
+
+    try {
+      console.log("Initializing Leaflet map");
+      
+      // Set initial map center (use user location if available, otherwise default to Madrid)
+      const initialLat = userLocation ? userLocation.latitude : 40.4168;
+      const initialLng = userLocation ? userLocation.longitude : -3.7038;
+      
+      // Create Leaflet map
+      const map = L.map(mapRef.current).setView([initialLat, initialLng], 13);
+      leafletMapRef.current = map;
+      
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      // Add user marker if location is available
+      if (userLocation) {
+        updateUserMarker(userLocation.latitude, userLocation.longitude);
       }
       
-      // Normalize coordinates to fit our container
-      // We'll use a simple mapping to place markers on our grid
-      const x = ((restaurant.longitude + 180) / 360) * 100;
-      const y = ((90 - restaurant.latitude) / 180) * 100;
-      
-      console.log(`Adding marker for ${restaurant.name} at position:`, { x, y, lat: restaurant.latitude, lng: restaurant.longitude });
-      
-      // Create marker element
-      const marker = document.createElement('div');
-      marker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10';
-      marker.style.left = `${x}%`;
-      marker.style.top = `${y}%`;
-      
-      // Create pin element
-      const pin = document.createElement('div');
-      pin.className = 'bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors';
-      pin.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
-      
-      marker.appendChild(pin);
-      
-      // Add restaurant name tooltip
-      const tooltip = document.createElement('div');
-      tooltip.className = 'absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white p-2 rounded shadow-md text-xs whitespace-nowrap opacity-0 pointer-events-none transition-opacity z-20';
-      tooltip.textContent = restaurant.name;
-      marker.appendChild(tooltip);
-      
-      // Show tooltip on hover
-      marker.addEventListener('mouseenter', () => {
-        tooltip.classList.remove('opacity-0');
-        tooltip.classList.add('opacity-100');
+      // Add restaurant markers
+      restaurants.forEach(restaurant => {
+        if (!restaurant.latitude || !restaurant.longitude) return;
+        
+        // Create custom restaurant marker
+        const restaurantIcon = new L.Icon({
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41]
+        });
+        
+        const marker = L.marker([restaurant.latitude, restaurant.longitude], { 
+          icon: restaurantIcon 
+        }).addTo(map);
+        
+        // Add popup with restaurant info
+        const popupContent = `
+          <div class="p-2">
+            <h3 class="font-bold">${restaurant.name}</h3>
+            <p>${restaurant.cuisine} · ${restaurant.price_range}</p>
+            <button class="bg-primary text-white px-2 py-1 rounded text-xs mt-2 view-details-btn" 
+              data-id="${restaurant.id}">View Details</button>
+          </div>
+        `;
+        
+        const popup = marker.bindPopup(popupContent);
+        
+        // Handle popup open to attach click event to the button
+        popup.on('popupopen', () => {
+          const button = document.querySelector(`.view-details-btn[data-id="${restaurant.id}"]`);
+          if (button) {
+            button.addEventListener('click', () => {
+              onRestaurantSelect(restaurant.id);
+            });
+          }
+        });
+        
+        // Also handle marker click directly
+        marker.on('click', () => {
+          marker.openPopup();
+        });
+        
+        markersRef.current.push(marker);
       });
       
-      marker.addEventListener('mouseleave', () => {
-        tooltip.classList.remove('opacity-100');
-        tooltip.classList.add('opacity-0');
-      });
+      // Add pulsing animation style for user location
+      const style = document.createElement('style');
+      style.textContent = `
+        .pulse-animation {
+          animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+          0% {
+            transform: scale(0.95);
+            filter: drop-shadow(0 0 0 rgba(59, 130, 246, 0.7));
+          }
+          70% {
+            transform: scale(1);
+            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0));
+          }
+          100% {
+            transform: scale(0.95);
+            filter: drop-shadow(0 0 0 rgba(59, 130, 246, 0));
+          }
+        }
+      `;
+      document.head.appendChild(style);
       
-      // Handle marker click to navigate to restaurant
-      marker.addEventListener('click', () => {
-        onRestaurantSelect(restaurant.id);
-      });
+      // Force map to fit to container
+      setTimeout(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      }, 300);
       
-      mapUI.appendChild(marker);
-    });
-    
-    // Add user marker if location is available
-    if (userLocation) {
-      const userX = ((userLocation.coords.longitude + 180) / 360) * 100;
-      const userY = ((90 - userLocation.coords.latitude) / 180) * 100;
-      
-      console.log("Adding user marker at:", { x: userX, y: userY });
-      
-      const userMarker = document.createElement('div');
-      userMarker.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 z-20';
-      userMarker.style.left = `${userX}%`;
-      userMarker.style.top = `${userY}%`;
-      
-      const userPin = document.createElement('div');
-      userPin.className = 'bg-blue-500 text-white p-1 rounded-full pulseAnimation';
-      userPin.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle></svg>`;
-      
-      userMarker.appendChild(userPin);
-      
-      // Add user tooltip
-      const userTooltip = document.createElement('div');
-      userTooltip.className = 'absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white p-2 rounded shadow-md text-xs whitespace-nowrap opacity-0 pointer-events-none transition-opacity z-20';
-      userTooltip.textContent = "Your location";
-      userMarker.appendChild(userTooltip);
-      
-      // Show tooltip on hover
-      userMarker.addEventListener('mouseenter', () => {
-        userTooltip.classList.remove('opacity-0');
-        userTooltip.classList.add('opacity-100');
-      });
-      
-      userMarker.addEventListener('mouseleave', () => {
-        userTooltip.classList.remove('opacity-100');
-        userTooltip.classList.add('opacity-0');
-      });
-      
-      mapUI.appendChild(userMarker);
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      setMapError('Unable to initialize map. Please try again later.');
     }
     
-    mapWrapper.appendChild(mapUI);
-    mapContainer.appendChild(mapWrapper);
-    
-    // Add disclaimer
-    const disclaimer = document.createElement('div');
-    disclaimer.className = 'absolute bottom-2 right-2 bg-white/80 p-1 rounded text-xs text-gray-500';
-    disclaimer.textContent = 'Map View (Simplified)';
-    mapWrapper.appendChild(disclaimer);
-    
-    // Add pulse animation style for user location
-    const style = document.createElement('style');
-    style.textContent = `
-      .pulseAnimation {
-        animation: pulse 1.5s infinite;
+    // Cleanup when component unmounts
+    return () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+        userMarkerRef.current = null;
+        markersRef.current = [];
       }
-      @keyframes pulse {
-        0% {
-          transform: scale(0.95);
-          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
-        }
-        70% {
-          transform: scale(1);
-          box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
-        }
-        100% {
-          transform: scale(0.95);
-          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  };
+    };
+  }, [isMapLoading, restaurants, userLocation]);
 
   // Center map on user location
   const centerOnUserLocation = () => {
@@ -327,45 +335,64 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       return;
     }
     
-    // If we have the user location but map is not initialized or rendered yet
-    if (!mapInitialized || !mapRef.current) {
-      setIsMapLoading(false);
-      setMapInitialized(false);
-      setTimeout(() => {
-        renderMap();
-        setMapInitialized(true);
-      }, 100);
-      return;
+    if (leafletMapRef.current) {
+      leafletMapRef.current.setView([userLocation.latitude, userLocation.longitude], 13);
+      
+      toast({
+        title: "Map Centered",
+        description: "Map centered on your current location",
+      });
     }
-    
-    // Re-render the map which will center on user location
-    renderMap();
-    
-    toast({
-      title: "Map Centered",
-      description: "Map centered on your current location",
-    });
   };
 
   // Refresh map data
   const refreshMap = () => {
-    setMapInitialized(false);
     setIsMapLoading(true);
     
-    // Fetch data again
+    // Clean up previous map
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove();
+      leafletMapRef.current = null;
+      userMarkerRef.current = null;
+      markersRef.current = [];
+    }
+    
+    // Refetch data
     const fetchData = async () => {
       try {
         const restaurantsData = await fetchRestaurants();
         
-        // Add mock locations if needed for demonstration purposes
-        const restaurantsWithLocation = restaurantsData.map(restaurant => ({
-          ...restaurant,
-          latitude: 40.4168 + (Math.random() * 0.1 - 0.05),
-          longitude: -3.7038 + (Math.random() * 0.1 - 0.05)
-        }));
+        // Get location data for each restaurant
+        const restaurantsWithLocationPromises = restaurantsData.map(async (restaurant) => {
+          try {
+            const location = await fetchRestaurantLocation(restaurant.id);
+            
+            if (location && location.latitude && location.longitude) {
+              return {
+                ...restaurant,
+                latitude: location.latitude,
+                longitude: location.longitude
+              };
+            }
+            
+            // If no valid location, create a random one near Madrid
+            return {
+              ...restaurant,
+              latitude: 40.4168 + (Math.random() * 0.1 - 0.05),
+              longitude: -3.7038 + (Math.random() * 0.1 - 0.05)
+            };
+          } catch (error) {
+            console.error("Error fetching location for restaurant:", restaurant.id, error);
+            return {
+              ...restaurant,
+              latitude: 40.4168 + (Math.random() * 0.1 - 0.05),
+              longitude: -3.7038 + (Math.random() * 0.1 - 0.05)
+            };
+          }
+        });
         
+        const restaurantsWithLocation = await Promise.all(restaurantsWithLocationPromises);
         setRestaurants(restaurantsWithLocation);
-        renderMap();
         
         toast({
           title: "Map Refreshed",
@@ -407,17 +434,6 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         <h3 className="text-lg font-medium mb-2">Map Error</h3>
         <p className="text-muted-foreground text-sm mb-4">{mapError}</p>
         <Button onClick={refreshMap}>Reload Map</Button>
-      </div>
-    );
-  }
-
-  if (restaurants.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <MapPin className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium mb-2">No Restaurants Found</h3>
-        <p className="text-muted-foreground text-sm mb-4">We couldn't find any restaurants with valid location data.</p>
-        <Button onClick={refreshMap}>Try Again</Button>
       </div>
     );
   }

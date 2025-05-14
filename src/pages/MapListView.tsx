@@ -19,7 +19,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import RestaurantCard from "@/components/RestaurantCard";
 import MapView from "@/components/MapView";
 import { 
