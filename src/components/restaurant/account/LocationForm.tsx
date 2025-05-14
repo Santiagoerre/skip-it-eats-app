@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { MapPin, Check, MapIcon } from "lucide-react";
+import { MapPin, Check, MapIcon, Navigation } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RestaurantLocation } from "@/services/restaurantService";
 import { useToast } from "@/hooks/use-toast";
@@ -49,9 +49,12 @@ const LocationForm = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletMarkerRef = useRef<L.Marker | null>(null);
+  const userLocationMarkerRef = useRef<L.Marker | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGettingUserLocation, setIsGettingUserLocation] = useState(false);
 
   // Fix Leaflet icon paths that are broken in production builds
   useEffect(() => {
@@ -179,6 +182,140 @@ const LocationForm = ({
     };
   }, []);
 
+  // Get user's current location
+  const getUserLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: "Error",
+        description: "Geolocation is not supported by your browser",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGettingUserLocation(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        
+        // Set user location
+        setUserLocation({ lat: userLat, lng: userLng });
+        
+        // Update map with user location if map is open
+        if (leafletMapRef.current) {
+          // Center map on user location
+          leafletMapRef.current.setView([userLat, userLng], 15);
+          
+          // Add or update user location marker
+          if (userLocationMarkerRef.current) {
+            userLocationMarkerRef.current.setLatLng([userLat, userLng]);
+          } else {
+            // Create a custom blue marker for user location
+            const userIcon = new L.Icon({
+              iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+              iconSize: [25, 41],
+              iconAnchor: [12, 41],
+              popupAnchor: [1, -34],
+              shadowSize: [41, 41]
+            });
+            
+            const marker = L.marker([userLat, userLng], { 
+              icon: userIcon,
+              zIndexOffset: 1000 // Ensure user marker is on top
+            }).addTo(leafletMapRef.current);
+            
+            marker.bindPopup("Your location").openPopup();
+            userLocationMarkerRef.current = marker;
+          }
+        }
+        
+        // Try to get address from coordinates
+        try {
+          const address = await getAddressFromCoordinates(userLat, userLng);
+          if (address) {
+            onAddressChange(address);
+            // Also update the restaurant marker position
+            setCurrentLatitude(userLat);
+            setCurrentLongitude(userLng);
+            
+            // Call the parent callback if provided
+            if (onCoordinatesChange) {
+              onCoordinatesChange(userLat, userLng);
+            }
+            
+            setIsValidated(true);
+            
+            if (leafletMapRef.current && leafletMarkerRef.current) {
+              leafletMarkerRef.current.setLatLng([userLat, userLng]);
+            }
+            
+            toast({
+              title: "Location found",
+              description: "We've set your location and address based on your current position",
+            });
+          }
+        } catch (error) {
+          console.error("Error getting address from coordinates:", error);
+          // We still have the coordinates even if we couldn't get the address
+          setCurrentLatitude(userLat);
+          setCurrentLongitude(userLng);
+          
+          // Call the parent callback if provided
+          if (onCoordinatesChange) {
+            onCoordinatesChange(userLat, userLng);
+          }
+          
+          setIsValidated(true);
+          
+          toast({
+            title: "Location found",
+            description: "We've set your coordinates, but couldn't determine your exact address",
+          });
+        }
+        
+        setIsGettingUserLocation(false);
+      },
+      (error) => {
+        console.error("Error getting user location:", error);
+        setIsGettingUserLocation(false);
+        
+        let errorMessage = "Could not get your location";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "You denied the request for location access";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information is unavailable";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "The request to get your location timed out";
+            break;
+        }
+        
+        toast({
+          title: "Location error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    );
+  };
+
+  // Center map on user location
+  const centerMapOnUserLocation = () => {
+    if (!userLocation || !leafletMapRef.current) return;
+    
+    leafletMapRef.current.setView([userLocation.lat, userLocation.lng], 15);
+    
+    toast({
+      title: "Map centered",
+      description: "Map centered on your current location",
+    });
+  };
+
   // Initialize the Leaflet map when dialog opens
   useEffect(() => {
     if (!isMapDialogOpen) {
@@ -197,6 +334,8 @@ const LocationForm = ({
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
+        leafletMarkerRef.current = null;
+        userLocationMarkerRef.current = null;
       }
       
       // Get the container and make sure it's ready
@@ -210,8 +349,8 @@ const LocationForm = ({
       container.style.height = '300px';
       
       // Set initial map center
-      const initialLat = currentLatitude || 40.7128; // Default to NYC if no coordinates
-      const initialLng = currentLongitude || -74.0060;
+      const initialLat = currentLatitude || (userLocation ? userLocation.lat : 40.7128);
+      const initialLng = currentLongitude || (userLocation ? userLocation.lng : -74.0060);
       
       try {
         console.log("Initializing map with center:", initialLat, initialLng);
@@ -293,6 +432,27 @@ const LocationForm = ({
               console.error("Failed to get address from coordinates:", error);
             }
           });
+        }
+        
+        // Add user location marker if we have it
+        if (userLocation) {
+          // Create a custom blue marker for user location
+          const userIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+          });
+          
+          const marker = L.marker([userLocation.lat, userLocation.lng], { 
+            icon: userIcon,
+            zIndexOffset: 1000 // Ensure user marker is on top
+          }).addTo(map);
+          
+          marker.bindPopup("Your location").openPopup();
+          userLocationMarkerRef.current = marker;
         }
         
         // Handle map click events to move marker
@@ -387,9 +547,10 @@ const LocationForm = ({
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
         leafletMarkerRef.current = null;
+        userLocationMarkerRef.current = null;
       }
     };
-  }, [isMapDialogOpen, currentLatitude, currentLongitude, onCoordinatesChange, onAddressChange, toast]);
+  }, [isMapDialogOpen, currentLatitude, currentLongitude, userLocation, onCoordinatesChange, onAddressChange, toast]);
 
   // Check if already validated on mount
   useEffect(() => {
@@ -435,7 +596,7 @@ const LocationForm = ({
               </div>
             )}
           </div>
-          <div className="flex gap-2 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             <Dialog open={isMapDialogOpen} onOpenChange={setIsMapDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="flex items-center gap-1">
@@ -453,9 +614,40 @@ const LocationForm = ({
                 <div className="w-full h-[300px] mt-2 border rounded-md overflow-hidden">
                   <div ref={mapContainerRef} className="w-full h-full" style={{ height: '300px' }} />
                 </div>
-                {!mapReady && (
+                {!mapReady ? (
                   <div className="text-center py-2 text-sm text-muted-foreground">
                     Initializing map...
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center pt-2">
+                    <Button 
+                      size="sm" 
+                      variant="secondary" 
+                      onClick={getUserLocation}
+                      disabled={isGettingUserLocation}
+                      className="flex items-center gap-1"
+                    >
+                      {isGettingUserLocation ? (
+                        "Getting location..."
+                      ) : (
+                        <>
+                          <MapPin className="h-4 w-4" />
+                          <span>Use My Location</span>
+                        </>
+                      )}
+                    </Button>
+                    
+                    {userLocation && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={centerMapOnUserLocation}
+                        className="flex items-center gap-1"
+                      >
+                        <Navigation className="h-4 w-4" />
+                        <span>Center on Me</span>
+                      </Button>
+                    )}
                   </div>
                 )}
               </DialogContent>
@@ -468,6 +660,24 @@ const LocationForm = ({
               disabled={isValidating}
             >
               {isValidating ? "Validating..." : "Validate Address"}
+            </Button>
+            
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={getUserLocation}
+              disabled={isGettingUserLocation}
+              className="flex items-center gap-1"
+            >
+              {isGettingUserLocation ? (
+                "Getting location..."
+              ) : (
+                <>
+                  <MapPin className="h-4 w-4" />
+                  <span>Use My Location</span>
+                </>
+              )}
             </Button>
           </div>
           

@@ -1,9 +1,8 @@
-
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Navigation, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRestaurants, fetchRestaurantLocation } from "@/services/restaurantService";
@@ -30,6 +29,7 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const [isMapLoading, setIsMapLoading] = useState(true);
   const [mapInitialized, setMapInitialized] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [isGettingUserLocation, setIsGettingUserLocation] = useState(false);
 
   // Fetch restaurants data - not using React Query as we'll manually fetch and transform
   useEffect(() => {
@@ -90,45 +90,66 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   }, []);
 
   // Get user's location
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          console.log("User location obtained:", position.coords);
-          setUserLocation(position);
-        },
-        (error) => {
-          console.error('Error getting user location:', error);
-          // Create a default user location near Madrid for demo purposes
-          const fakePosition = {
-            coords: {
-              latitude: 40.4168,
-              longitude: -3.7038,
-              accuracy: 10,
-              altitude: null,
-              altitudeAccuracy: null,
-              heading: null,
-              speed: null
-            },
-            timestamp: Date.now()
-          };
-          setUserLocation(fakePosition as GeolocationPosition);
-          
-          toast({
-            title: "Using default location",
-            description: "We're showing you a default location in Madrid",
-            variant: "default",
-          });
-        }
-      );
-    } else {
+  const getUserLocation = () => {
+    if (!navigator.geolocation) {
       toast({
         title: "Location not supported",
         description: "Your browser doesn't support geolocation",
         variant: "destructive",
       });
+      return;
     }
-  }, [toast]);
+
+    setIsGettingUserLocation(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log("User location obtained:", position.coords);
+        setUserLocation(position);
+        setIsGettingUserLocation(false);
+        
+        toast({
+          title: "Location found",
+          description: "We've found your current location",
+        });
+        
+        // If map is already initialized, update it
+        if (mapInitialized) {
+          renderMap();
+        }
+      },
+      (error) => {
+        console.error('Error getting user location:', error);
+        setIsGettingUserLocation(false);
+        
+        // Create a default user location near Madrid for demo purposes
+        const fakePosition = {
+          coords: {
+            latitude: 40.4168,
+            longitude: -3.7038,
+            accuracy: 10,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null
+          },
+          timestamp: Date.now()
+        };
+        setUserLocation(fakePosition as GeolocationPosition);
+        
+        toast({
+          title: "Using default location",
+          description: "We're showing you a default location in Madrid",
+          variant: "default",
+        });
+        
+        // If map is already initialized, update it
+        if (mapInitialized) {
+          renderMap();
+        }
+      }
+    );
+  };
 
   // Initialize map after data is loaded
   useEffect(() => {
@@ -301,13 +322,29 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
 
   // Center map on user location
   const centerOnUserLocation = () => {
-    if (userLocation && mapRef.current) {
-      toast({
-        title: "Map Centered",
-        description: "Map centered on your current location",
-      });
-      renderMap();
+    if (!userLocation) {
+      getUserLocation();
+      return;
     }
+    
+    // If we have the user location but map is not initialized or rendered yet
+    if (!mapInitialized || !mapRef.current) {
+      setIsMapLoading(false);
+      setMapInitialized(false);
+      setTimeout(() => {
+        renderMap();
+        setMapInitialized(true);
+      }, 100);
+      return;
+    }
+    
+    // Re-render the map which will center on user location
+    renderMap();
+    
+    toast({
+      title: "Map Centered",
+      description: "Map centered on your current location",
+    });
   };
 
   // Refresh map data
@@ -344,6 +381,13 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     
     fetchData();
   };
+
+  // Get user location on component mount
+  useEffect(() => {
+    if (!userLocation) {
+      getUserLocation();
+    }
+  }, []);
 
   if (isMapLoading) {
     return (
@@ -382,16 +426,24 @@ const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     <div className="relative w-full h-full">
       <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden" />
       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
-        {userLocation && (
-          <Button 
-            size="sm" 
-            className="flex items-center gap-2"
-            onClick={centerOnUserLocation}
-          >
-            <Navigation className="h-4 w-4" />
-            <span>Center on me</span>
-          </Button>
-        )}
+        <Button 
+          size="sm" 
+          className="flex items-center gap-2"
+          onClick={centerOnUserLocation}
+          disabled={isGettingUserLocation}
+        >
+          {isGettingUserLocation ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Getting location...</span>
+            </>
+          ) : (
+            <>
+              <Navigation className="h-4 w-4" />
+              <span>Center on me</span>
+            </>
+          )}
+        </Button>
         <Button 
           size="sm" 
           variant="outline"
