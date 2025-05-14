@@ -1,108 +1,77 @@
 
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 import { useAuth } from "@/contexts/auth";
-import { UserType } from "@/contexts/auth/types";
+import RestaurantIcon from "@/components/icons/RestaurantIcon";
+import CustomerIcon from "@/components/icons/CustomerIcon";
 
 const UserTypeSelection = () => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedType, setSelectedType] = useState<UserType | null>(null);
-  const { session, userType, isLoading: authLoading } = useAuth();
-  
-  // Redirect if user is already logged in and has a type
+  const { session, userType } = useAuth();
+
+  // Redirect if already logged in with a user type
   useEffect(() => {
-    // Only run this check after auth has fully loaded and we're not in a signup flow
-    if (!authLoading && session && userType) {
-      console.log("UserTypeSelection - Logged in user with type detected:", userType);
-      // User already has a type, redirect them to the appropriate page
-      if (userType === "restaurant") {
+    if (session && userType) {
+      if (userType === 'restaurant') {
         navigate("/restaurant-dashboard");
-      } else if (userType === "customer") {
+      } else if (userType === 'customer') {
         navigate("/app");
       }
     }
-  }, [session, userType, navigate, authLoading]);
+  }, [session, userType, navigate]);
 
-  const handleUserTypeSelection = (type: UserType) => {
-    console.log("UserTypeSelection - Selected type:", type);
-    setSelectedType(type);
-    setIsLoading(true);
-    
-    try {
-      // Navigate to the appropriate signup page
-      if (type === "customer") {
-        console.log("UserTypeSelection - Navigating to customer signup");
-        navigate("/signup/customer");
-      } else if (type === "restaurant") {
-        console.log("UserTypeSelection - Navigating to restaurant signup");
-        navigate("/signup/restaurant");
-      } else {
-        console.error("UserTypeSelection - Invalid user type selected:", type);
-      }
-    } catch (error) {
-      console.error("UserTypeSelection - Navigation error:", error);
-    } finally {
-      // Always make sure to clear loading state
-      setIsLoading(false);
-    }
+  const handleRestaurantSelect = () => {
+    // Set flag for new signup flow and navigate
+    sessionStorage.setItem('is_new_signup', 'true');
+    navigate("/signup/restaurant?new=true");
+  };
+
+  const handleCustomerSelect = () => {
+    // Set flag for new signup flow and navigate
+    sessionStorage.setItem('is_new_signup', 'true');
+    navigate("/signup/customer?new=true");
   };
 
   return (
-    <div className="mobile-container app-height flex flex-col p-6 bg-white">
-      <button 
-        onClick={() => navigate("/")}
-        className="flex items-center text-muted-foreground mb-6"
-        disabled={isLoading}
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back
-      </button>
-      
-      <div className="flex-1 flex flex-col justify-center items-center">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold text-skipit-primary">I am a...</h1>
-          <p className="text-muted-foreground mt-2">
-            Choose how you'll use Skip It
-          </p>
-        </div>
-        
-        <div className="space-y-6 w-full">
-          <Button 
-            variant="outline" 
-            className={`w-full py-8 flex flex-col items-center justify-center border-2 transition-all duration-200 ${
-              selectedType === "customer" 
-                ? "border-skipit-primary bg-skipit-light" 
-                : "hover:bg-skipit-light"
-            }`}
-            onClick={() => handleUserTypeSelection("customer")}
-            disabled={isLoading}
-          >
-            <span className="text-xl font-semibold mb-2">Customer</span>
-            <span className="text-sm text-muted-foreground">
-              I want to order food and skip the line
-            </span>
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            className={`w-full py-8 flex flex-col items-center justify-center border-2 transition-all duration-200 ${
-              selectedType === "restaurant" 
-                ? "border-skipit-primary bg-skipit-light" 
-                : "hover:bg-skipit-light"
-            }`}
-            onClick={() => handleUserTypeSelection("restaurant")}
-            disabled={isLoading}
-          >
-            <span className="text-xl font-semibold mb-2">Restaurant / Food Truck</span>
-            <span className="text-sm text-muted-foreground">
-              I want to receive orders from customers
-            </span>
-          </Button>
-        </div>
+    <div className="mobile-container app-height flex flex-col items-center justify-center p-6 bg-white">
+      <div className="text-center mb-12">
+        <h1 className="text-3xl font-bold text-skipit-primary">Join Skip It</h1>
+        <p className="text-muted-foreground mt-2">Choose how you want to use Skip It</p>
       </div>
+
+      <div className="grid grid-cols-1 gap-6 w-full max-w-md">
+        <button
+          onClick={handleCustomerSelect}
+          className="flex flex-col items-center justify-center p-6 border-2 border-muted rounded-lg hover:border-skipit-primary hover:bg-sky-50 transition-all"
+        >
+          <CustomerIcon className="w-20 h-20 mb-4 text-skipit-primary" />
+          <h2 className="text-xl font-semibold">I'm a Customer</h2>
+          <p className="text-muted-foreground text-sm mt-2">
+            Sign up to order food from restaurants
+          </p>
+        </button>
+
+        <button
+          onClick={handleRestaurantSelect}
+          className="flex flex-col items-center justify-center p-6 border-2 border-muted rounded-lg hover:border-skipit-primary hover:bg-sky-50 transition-all"
+        >
+          <RestaurantIcon className="w-20 h-20 mb-4 text-skipit-primary" />
+          <h2 className="text-xl font-semibold">I'm a Restaurant</h2>
+          <p className="text-muted-foreground text-sm mt-2">
+            Sign up to receive orders from customers
+          </p>
+        </button>
+      </div>
+
+      <p className="text-sm text-center text-muted-foreground mt-8">
+        Already have an account?{" "}
+        <button
+          className="text-skipit-primary font-medium hover:underline"
+          onClick={() => navigate("/signin")}
+        >
+          Sign In
+        </button>
+      </p>
     </div>
   );
 };

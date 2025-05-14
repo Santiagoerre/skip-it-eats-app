@@ -4,6 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  clearTemporaryCredentials, 
+  markAsNewSignupFlow 
+} from "@/utils/authStateHelpers";
 
 export const useRestaurantSignUp = () => {
   const navigate = useNavigate();
@@ -19,6 +23,9 @@ export const useRestaurantSignUp = () => {
   const [longitude, setLongitude] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Mark this as a new signup flow
+  markAsNewSignupFlow();
 
   // Verify restaurant profile creation
   const verifyRestaurantProfileCreation = async (userId: string): Promise<boolean> => {
@@ -202,11 +209,6 @@ export const useRestaurantSignUp = () => {
         description: "Your restaurant account has been created successfully.",
       });
       
-      // Store the user ID in session storage for the success page to use
-      if (data.user.id) {
-        sessionStorage.setItem('new_user_id', data.user.id);
-      }
-      
       // Navigate to success page, user will be handled by SignUpSuccess component
       navigate("/signup-success");
       
@@ -214,10 +216,7 @@ export const useRestaurantSignUp = () => {
       console.error("Restaurant signup error:", error);
       
       // Clear temporary credentials on error
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('temp_email');
-        sessionStorage.removeItem('temp_password');
-      }
+      clearTemporaryCredentials();
       
       toast({
         title: "Sign Up Failed",

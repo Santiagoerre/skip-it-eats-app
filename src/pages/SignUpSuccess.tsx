@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Loader2 } from "lucide-react";
@@ -21,6 +20,9 @@ const SignUpSuccess = () => {
   const hasToastShown = useRef(false);
   
   useEffect(() => {
+    // Clear the new signup flag when arriving at success page
+    sessionStorage.removeItem('is_new_signup');
+    
     // First check if we have credentials in sessionStorage (from redirect)
     const storedEmail = sessionStorage.getItem('temp_email');
     const storedPassword = sessionStorage.getItem('temp_password');
@@ -116,8 +118,8 @@ const SignUpSuccess = () => {
                 .from('restaurant_details')
                 .insert({
                   restaurant_id: user.id,
-                  name: user.user_metadata.display_name || 'New Restaurant',
-                  cuisine: user.user_metadata.food_type || 'Not specified',
+                  name: user.user_metadata?.display_name || 'New Restaurant',
+                  cuisine: user.user_metadata?.food_type || 'Not specified',
                   price_range: '$'
                 });
                 

@@ -43,17 +43,19 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
+              {/* Auth callback route (highest priority) */}
+              <Route path="/auth/callback" element={<SignUpSuccess />} />
+              <Route path="/signup-success" element={<SignUpSuccess />} />
+              
               {/* Public routes */}
               <Route path="/" element={<SplashScreen />} />
               <Route path="/signin" element={<SignIn />} />
               <Route path="/signup" element={<UserTypeSelection />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               
-              {/* Signup routes - these don't need protection */}
+              {/* Signup routes with new=true query param - these don't need protection */}
               <Route path="/signup/customer" element={<CustomerSignUp />} />
               <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
-              <Route path="/signup-success" element={<SignUpSuccess />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/auth/callback" element={<SignUpSuccess />} />
               
               {/* Restaurant routes */}
               <Route path="/restaurant-dashboard" element={

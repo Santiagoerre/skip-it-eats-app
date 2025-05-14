@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { UserType } from "./types";
+import { storeTemporaryCredentials, recordNewUserId } from "@/utils/authStateHelpers";
 
 export const signIn = async (email: string, password: string) => {
   console.log("Attempting sign in for email:", email);
@@ -23,10 +23,7 @@ export const signUp = async (
     console.log(`Starting ${userType} signup process for email:`, email);
     
     // Store credentials temporarily for auto-signin after signup
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('temp_email', email);
-      sessionStorage.setItem('temp_password', password);
-    }
+    storeTemporaryCredentials(email, password);
     
     // Ensure user_type is included in metadata
     const combinedMetadata = {
@@ -55,6 +52,9 @@ export const signUp = async (
     // Check if the user was actually created
     if (data?.user) {
       console.log("User created with ID:", data.user.id);
+      
+      // Store the user ID for the success page
+      recordNewUserId(data.user.id);
       
       // Add a delay to allow database triggers to complete
       await new Promise(resolve => setTimeout(resolve, 1000));

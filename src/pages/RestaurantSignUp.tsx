@@ -1,6 +1,5 @@
-
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useFormValidation } from "@/hooks/useFormValidation";
@@ -15,9 +14,11 @@ import RestaurantNameField from "@/components/restaurant/signup/RestaurantNameFi
 
 const RestaurantSignUp = () => {
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const location = useLocation();
+  const { session, user, userType } = useAuth();
   const { toast } = useToast();
   const { errors, validateEmailAndPassword, validateLocationData, resetErrors } = useFormValidation();
+  const [redirectChecked, setRedirectChecked] = useState(false);
   
   const {
     email, setEmail,
@@ -33,22 +34,46 @@ const RestaurantSignUp = () => {
     handleImageChange
   } = useRestaurantSignUp();
 
-  // Redirect if already logged in
+  // Check if we're in a new signup flow (prevent redirect for new signups)
+  const isNewSignupFlow = location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true';
+
+  // Redirect if already logged in with a completed profile
   useEffect(() => {
-    if (session) {
-      console.log("RestaurantSignUp - User already has session, redirecting to dashboard");
-      navigate("/restaurant-dashboard");
+    // Skip redirect check if explicitly in signup flow or still loading
+    if (isNewSignupFlow || isLoading) {
+      return;
     }
-  }, [session, navigate]);
+
+    // Delay the redirect check to avoid rapid mount/unmount cycles
+    const redirectTimer = setTimeout(() => {
+      if (session && userType === 'restaurant' && !redirectChecked) {
+        console.log("RestaurantSignUp - User already has restaurant profile, redirecting to dashboard");
+        navigate("/restaurant-dashboard");
+      }
+      setRedirectChecked(true);
+    }, 1000);
+
+    return () => clearTimeout(redirectTimer);
+  }, [session, userType, navigate, redirectChecked, isNewSignupFlow, isLoading]);
   
   // Reset errors when component unmounts
   useEffect(() => {
     console.log("RestaurantSignUp component mounted");
+    
+    // Mark as new signup flow in session storage
+    if (!sessionStorage.getItem('is_new_signup')) {
+      sessionStorage.setItem('is_new_signup', 'true');
+    }
+    
     return () => {
       console.log("RestaurantSignUp component unmounting, resetting errors");
       resetErrors();
+      // Clear the new signup flag when component unmounts after successful signup
+      if (location.pathname !== '/signup/restaurant') {
+        sessionStorage.removeItem('is_new_signup');
+      }
     };
-  }, [resetErrors]);
+  }, [resetErrors, location.pathname]);
 
   // Validate form before submission
   const validateForm = () => {

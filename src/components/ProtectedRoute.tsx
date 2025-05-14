@@ -16,6 +16,10 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
   const { isLoading, session, user, userType } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
+  // Check if we're in a signup flow
+  const isSignupRoute = location.pathname.includes("/signup");
+  const isNewSignupFlow = location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true';
+
   useEffect(() => {
     const verifyAuth = async () => {
       // Wait for the auth context to initialize
@@ -28,12 +32,14 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         hasSession: !!session, 
         currentUserType: userType, 
         requiredUserType,
-        pathname: location.pathname 
+        pathname: location.pathname,
+        isSignupRoute,
+        isNewSignupFlow
       });
       
-      // IMPORTANT: Skip ALL checks for signup routes - handle this first
-      if (location.pathname.includes("/signup")) {
-        console.log("ProtectedRoute - allowing access to signup route without checks:", location.pathname);
+      // IMPORTANT: Skip ALL checks for signup routes or auth callback routes
+      if (isSignupRoute || location.pathname.includes("/auth/callback") || location.pathname.includes("/signup-success")) {
+        console.log("ProtectedRoute - allowing access to signup/auth route without checks:", location.pathname);
         setIsCheckingAuth(false);
         return;
       }
@@ -87,7 +93,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
     };
 
     verifyAuth();
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user]);
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow]);
 
   // Helper function to redirect based on user type
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
