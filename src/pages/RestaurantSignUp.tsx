@@ -128,7 +128,7 @@ const RestaurantSignUp = () => {
             toast({
               title: "Image Upload Warning",
               description: "Your account was created, but there was an issue uploading your image.",
-              variant: "warning",
+              variant: "default", // Changed from "warning" to "default"
             });
           } else {
             console.log("Image uploaded successfully");
