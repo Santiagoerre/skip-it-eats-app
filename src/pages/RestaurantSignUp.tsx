@@ -9,6 +9,7 @@ import FoodTypeSelector from "@/components/auth/FoodTypeSelector";
 import ImageUploader from "@/components/auth/ImageUploader";
 import LocationSelector from "@/components/auth/LocationSelector";
 import { useFormValidation } from "@/hooks/useFormValidation";
+import { supabase } from "@/integrations/supabase/client";
 
 const RestaurantSignUp = () => {
   const navigate = useNavigate();
@@ -29,19 +30,25 @@ const RestaurantSignUp = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (session) {
+      console.log("RestaurantSignUp - User already has session, redirecting to dashboard");
       navigate("/restaurant-dashboard");
     }
   }, [session, navigate]);
   
   // Reset errors when component unmounts
   useEffect(() => {
+    console.log("RestaurantSignUp component mounted");
     return () => {
+      console.log("RestaurantSignUp component unmounting, resetting errors");
       resetErrors();
     };
   }, [resetErrors]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Restaurant signup form submitted with:", { 
+      email, restaurantName, foodType, address, latitude, longitude 
+    });
     
     // Validate form fields
     const isFormValid = validateEmailAndPassword(email, password, confirmPassword, {
@@ -55,7 +62,7 @@ const RestaurantSignUp = () => {
         value: restaurantName,
         required: true,
         validator: (value: string) => value.length > 2,
-        errorMessage: "Restaurant name is required"
+        errorMessage: "Restaurant name is required and must be at least 3 characters"
       }
     });
 
@@ -63,6 +70,7 @@ const RestaurantSignUp = () => {
     const isLocationValid = validateLocationData(address, latitude, longitude);
     
     if (!isFormValid || !isLocationValid) {
+      console.error("Form validation failed:", errors);
       toast({
         title: "Validation Error",
         description: "Please check the form for errors and try again.",
@@ -97,7 +105,56 @@ const RestaurantSignUp = () => {
       }
       
       if (!data?.user) {
+        console.error("No user data returned from signup");
         throw new Error("User account could not be created");
+      }
+      
+      console.log("Restaurant account created successfully:", data.user.id);
+      
+      // Handle image upload if an image was provided
+      if (imageFile && data.user.id) {
+        console.log("Uploading restaurant image");
+        try {
+          const fileExt = imageFile.name.split('.').pop();
+          const filePath = `${data.user.id}/restaurant-image.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('restaurant-images')
+            .upload(filePath, imageFile);
+            
+          if (uploadError) {
+            console.error("Error uploading image:", uploadError);
+            // Continue despite image upload error - we'll just show a warning
+            toast({
+              title: "Image Upload Warning",
+              description: "Your account was created, but there was an issue uploading your image.",
+              variant: "warning",
+            });
+          } else {
+            console.log("Image uploaded successfully");
+            
+            // Get the public URL for the uploaded image
+            const { data: urlData } = supabase.storage
+              .from('restaurant-images')
+              .getPublicUrl(filePath);
+              
+            if (urlData?.publicUrl) {
+              console.log("Image public URL:", urlData.publicUrl);
+              
+              // Update restaurant details with the image URL
+              const { error: updateError } = await supabase
+                .from('restaurant_details')
+                .update({ image_url: urlData.publicUrl })
+                .eq('restaurant_id', data.user.id);
+                
+              if (updateError) {
+                console.error("Error updating restaurant image URL:", updateError);
+              }
+            }
+          }
+        } catch (uploadError) {
+          console.error("Image upload exception:", uploadError);
+        }
       }
       
       toast({
@@ -133,6 +190,7 @@ const RestaurantSignUp = () => {
   };
 
   const handleImageChange = (file: File) => {
+    console.log("Image selected:", file.name);
     setImageFile(file);
   };
 

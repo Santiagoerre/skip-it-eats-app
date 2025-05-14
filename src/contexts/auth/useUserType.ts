@@ -56,6 +56,17 @@ export const useUserType = () => {
       } else {
         console.log("No profile found for user:", currentSession.user.id);
         setUserType(null);
+        
+        // Try to create profile if it doesn't exist and we have a user type in metadata
+        const userMetadataType = currentSession.user.user_metadata?.user_type as UserType;
+        if (userMetadataType) {
+          console.log("Attempting to create missing profile with type from metadata:", userMetadataType);
+          try {
+            await ensureUserProfile(currentSession.user.id, userMetadataType);
+          } catch (err) {
+            console.error("Failed to create profile from metadata:", err);
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to get user type:", err);
