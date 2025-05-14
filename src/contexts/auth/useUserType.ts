@@ -23,12 +23,25 @@ export const useUserType = () => {
       if (metadataUserType) {
         console.log("Found user type in metadata:", metadataUserType);
         
-        // Ensure profile exists
-        try {
-          await ensureUserProfile(currentSession.user.id, metadataUserType);
-          console.log("Profile creation/verification complete for:", currentSession.user.id);
-        } catch (err) {
-          console.error("Error ensuring user profile exists:", err);
+        // Ensure profile exists with multiple retries
+        let profileCreated = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const success = await ensureUserProfile(currentSession.user.id, metadataUserType);
+            if (success) {
+              profileCreated = true;
+              console.log(`Profile creation/verification complete on attempt ${attempt + 1} for:`, currentSession.user.id);
+              break;
+            }
+            console.log(`Profile creation failed on attempt ${attempt + 1}, will retry`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          } catch (err) {
+            console.error(`Error ensuring user profile exists on attempt ${attempt + 1}:`, err);
+          }
+        }
+        
+        if (!profileCreated) {
+          console.error("All profile creation attempts failed for:", currentSession.user.id);
         }
         
         // Set the user type from metadata
@@ -36,22 +49,37 @@ export const useUserType = () => {
         return;
       }
       
-      // Then check profiles table
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("user_type")
-        .eq("id", currentSession.user.id)
-        .maybeSingle();
+      // Then check profiles table with multiple retries
+      let profileData = null;
+      let profileError = null;
       
-      if (error) {
-        console.error("Error fetching user type:", error);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const result = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", currentSession.user.id)
+          .maybeSingle();
+        
+        profileData = result.data;
+        profileError = result.error;
+        
+        if (!profileError && profileData) {
+          break;
+        }
+        
+        console.log(`Profile fetch attempt ${attempt + 1} failed, will retry`);
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+      
+      if (profileError) {
+        console.error("Error fetching user type after multiple attempts:", profileError);
         setUserType(null);
         return;
       }
       
-      if (data) {
-        console.log("Found user type in profile:", data.user_type);
-        setUserType(data.user_type as UserType);
+      if (profileData) {
+        console.log("Found user type in profile:", profileData.user_type);
+        setUserType(profileData.user_type as UserType);
       } else {
         console.log("No profile found for user:", currentSession.user.id);
         setUserType(null);
@@ -61,8 +89,13 @@ export const useUserType = () => {
         if (userMetadataType) {
           console.log("Attempting to create missing profile with type from metadata:", userMetadataType);
           try {
-            await ensureUserProfile(currentSession.user.id, userMetadataType);
-            setUserType(userMetadataType);
+            const success = await ensureUserProfile(currentSession.user.id, userMetadataType);
+            if (success) {
+              console.log("Successfully created missing profile from metadata");
+              setUserType(userMetadataType);
+            } else {
+              console.error("Failed to create profile from metadata after multiple attempts");
+            }
           } catch (err) {
             console.error("Failed to create profile from metadata:", err);
           }

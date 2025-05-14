@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { UserType } from "./types";
 import { storeTemporaryCredentials, recordNewUserId } from "@/utils/authStateHelpers";
@@ -56,8 +57,8 @@ export const signUp = async (
       // Store the user ID for the success page
       recordNewUserId(data.user.id);
       
-      // Add a delay to allow database triggers to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Add a longer delay to allow database triggers to complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Verify that profile was created
       try {
@@ -65,7 +66,7 @@ export const signUp = async (
           .from('profiles')
           .select('*')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
           
         if (profileError) {
           console.warn("Error checking for user profile:", profileError);
@@ -73,19 +74,39 @@ export const signUp = async (
           console.warn("Profile was not automatically created, attempting manual creation");
           
           // Attempt to manually create the profile if it doesn't exist
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert([{
-              id: data.user.id,
-              user_type: userType,
-              display_name: metadata.display_name || null,
-              food_type: metadata.food_type || null
-            }]);
-            
-          if (insertError) {
-            console.error("Failed to manually create profile:", insertError);
-          } else {
-            console.log("Profile manually created successfully");
+          // Use retry logic to handle potential race conditions
+          let profileCreated = false;
+          
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([{
+                  id: data.user.id,
+                  user_type: userType,
+                  display_name: metadata.display_name || null,
+                  food_type: metadata.food_type || null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                }]);
+                
+              if (insertError) {
+                console.error(`Failed to manually create profile (attempt ${attempt + 1}):`, insertError);
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+              } else {
+                console.log("Profile manually created successfully");
+                profileCreated = true;
+                break;
+              }
+            } catch (createError) {
+              console.error(`Error during profile creation attempt ${attempt + 1}:`, createError);
+              await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            }
+          }
+          
+          if (!profileCreated) {
+            console.error("All profile creation attempts failed");
           }
         } else {
           console.log("Profile was automatically created:", profileData);
@@ -110,20 +131,37 @@ export const signUp = async (
             console.warn("Restaurant details not found, attempting manual creation");
             
             // Manually create restaurant details if they don't exist
-            const { error: detailsError } = await supabase
-              .from('restaurant_details')
-              .insert([{
-                restaurant_id: data.user.id,
-                name: metadata.display_name || 'New Restaurant',
-                cuisine: metadata.food_type || 'Not specified',
-                price_range: '$',
-                description: 'Restaurant created manually on ' + new Date().toISOString()
-              }]);
-              
-            if (detailsError) {
-              console.error("Failed to manually create restaurant details:", detailsError);
-            } else {
-              console.log("Restaurant details manually created");
+            // Use retry logic
+            let detailsCreated = false;
+            
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                const { error: detailsError } = await supabase
+                  .from('restaurant_details')
+                  .insert([{
+                    restaurant_id: data.user.id,
+                    name: metadata.display_name || 'New Restaurant',
+                    cuisine: metadata.food_type || 'Not specified',
+                    price_range: '$',
+                    description: 'Restaurant created manually on ' + new Date().toISOString()
+                  }]);
+                  
+                if (detailsError) {
+                  console.error(`Failed to manually create restaurant details (attempt ${attempt + 1}):`, detailsError);
+                  await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                } else {
+                  console.log("Restaurant details manually created");
+                  detailsCreated = true;
+                  break;
+                }
+              } catch (createDetailsError) {
+                console.error(`Error during restaurant details creation attempt ${attempt + 1}:`, createDetailsError);
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+              }
+            }
+            
+            if (!detailsCreated) {
+              console.error("All restaurant details creation attempts failed");
             }
           } else {
             console.log("Restaurant details found:", restaurantData);
@@ -143,19 +181,36 @@ export const signUp = async (
               console.warn("Restaurant location not found, attempting manual creation");
               
               // Manually create restaurant location if it doesn't exist
-              const { error: locationInsertError } = await supabase
-                .from('restaurant_locations')
-                .insert([{
-                  restaurant_id: data.user.id,
-                  address: metadata.address,
-                  latitude: metadata.latitude || 0,
-                  longitude: metadata.longitude || 0
-                }]);
-                
-              if (locationInsertError) {
-                console.error("Failed to manually create restaurant location:", locationInsertError);
-              } else {
-                console.log("Restaurant location manually created");
+              // Use retry logic
+              let locationCreated = false;
+              
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  const { error: locationInsertError } = await supabase
+                    .from('restaurant_locations')
+                    .insert([{
+                      restaurant_id: data.user.id,
+                      address: metadata.address,
+                      latitude: metadata.latitude || 0,
+                      longitude: metadata.longitude || 0
+                    }]);
+                    
+                  if (locationInsertError) {
+                    console.error(`Failed to manually create restaurant location (attempt ${attempt + 1}):`, locationInsertError);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                  } else {
+                    console.log("Restaurant location manually created");
+                    locationCreated = true;
+                    break;
+                  }
+                } catch (createLocationError) {
+                  console.error(`Error during restaurant location creation attempt ${attempt + 1}:`, createLocationError);
+                  await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                }
+              }
+              
+              if (!locationCreated) {
+                console.error("All restaurant location creation attempts failed");
               }
             } else {
               console.log("Restaurant location found:", locationData);
@@ -197,10 +252,11 @@ export const resetPassword = async (email: string) => {
   console.log("Password reset email sent successfully");
 };
 
-// Retry function with exponential backoff
-const retry = async (fn: () => Promise<any>, maxRetries = 3, delay = 500) => {
+// Improved retry function with exponential backoff
+const retry = async (fn: () => Promise<any>, maxRetries = 3, initialDelay = 500) => {
   let retries = 0;
   let lastError;
+  let delay = initialDelay;
   
   while (retries < maxRetries) {
     try {
@@ -210,8 +266,8 @@ const retry = async (fn: () => Promise<any>, maxRetries = 3, delay = 500) => {
       retries++;
       console.log(`Retry attempt ${retries} after ${delay}ms`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      // Exponential backoff
-      delay *= 2;
+      // Exponential backoff with small random factor
+      delay = delay * 2 + Math.floor(Math.random() * 200);
     }
   }
   

@@ -51,7 +51,7 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     // First check if the profile already exists
     const { data: existingProfile, error: fetchError } = await supabase
       .from('profiles')
-      .select('id, user_type')
+      .select('id, user_type, created_at, updated_at')
       .eq('id', userId)
       .maybeSingle();
     
@@ -62,13 +62,16 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
     
     // If profile exists with the correct user type, return true
     if (existingProfile && existingProfile.user_type === userType) {
-      console.log('Profile already exists with correct user type');
+      console.log('Profile already exists with correct user type:', existingProfile);
       return true;
     }
     
     // If profile exists but with wrong user type, update it
     if (existingProfile) {
-      console.log('Profile exists but with wrong user type, updating...');
+      console.log('Profile exists but with wrong user type, updating...', {
+        current: existingProfile.user_type,
+        desired: userType
+      });
       
       const updateProfile = async () => {
         const { error: updateError } = await supabase
@@ -87,31 +90,37 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       
       // Use retry for profile update
       await retryOperation(updateProfile);
+      console.log('Profile type updated successfully for user:', userId);
       return true;
     }
     
     // If profile doesn't exist, create it
-    console.log('Profile does not exist, creating new profile');
+    console.log('Profile does not exist, creating new profile for user:', userId);
     
     const createProfile = async () => {
-      const { error: insertError } = await supabase
+      const now = new Date().toISOString();
+      
+      const { data, error: insertError } = await supabase
         .from('profiles')
         .insert({
           id: userId,
           user_type: userType,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+          created_at: now,
+          updated_at: now
+        })
+        .select();
       
       if (insertError) {
         console.error('Error creating profile:', insertError);
         throw insertError;
       }
+      
+      console.log('Profile created with data:', data);
     };
     
     // Use retry for profile creation
     await retryOperation(createProfile);
-    console.log('Profile created successfully');
+    console.log('Profile created successfully for user:', userId);
     
     // If restaurant, create default restaurant details if they don't exist
     if (userType === 'restaurant') {
@@ -128,7 +137,7 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
       
       // If restaurant details don't exist, create them
       if (!existingDetails) {
-        console.log('Creating default restaurant details');
+        console.log('Creating default restaurant details for user:', userId);
         
         const createRestaurantDetails = async () => {
           const { error: detailsError } = await supabase
@@ -137,7 +146,8 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
               restaurant_id: userId,
               name: 'New Restaurant',
               cuisine: 'Not specified',
-              price_range: '$'
+              price_range: '$',
+              description: 'Default restaurant details created on ' + new Date().toISOString()
             });
           
           if (detailsError) {
@@ -148,9 +158,9 @@ export const ensureUserProfile = async (userId: string, userType: 'customer' | '
         
         // Use retry for restaurant details creation
         await retryOperation(createRestaurantDetails);
-        console.log('Restaurant details created successfully');
+        console.log('Restaurant details created successfully for user:', userId);
       } else {
-        console.log('Restaurant details already exist');
+        console.log('Restaurant details already exist for user:', userId);
       }
     }
     

@@ -27,21 +27,76 @@ export const useRestaurantSignUp = () => {
   // Mark this as a new signup flow
   markAsNewSignupFlow();
 
-  // Verify restaurant profile creation
+  // Verify restaurant profile creation with improved error handling
   const verifyRestaurantProfileCreation = async (userId: string): Promise<boolean> => {
     console.log("Verifying restaurant profile creation for:", userId);
     
     try {
-      // Check if profile exists
+      // First verify that the base profile exists
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, user_type')
         .eq('id', userId)
         .maybeSingle();
         
-      if (profileError || !profileData) {
-        console.error("Profile verification failed:", profileError || "No profile found");
+      if (profileError) {
+        console.error("Profile verification failed:", profileError);
         return false;
+      }
+      
+      if (!profileData) {
+        console.error("No profile found for user:", userId);
+        
+        // Attempt to manually create the base profile if it doesn't exist
+        try {
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: userId,
+              user_type: 'restaurant',
+              display_name: restaurantName,
+              food_type: foodType,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }]);
+            
+          if (insertError) {
+            console.error("Manual profile creation failed:", insertError);
+            return false;
+          }
+          
+          console.log("Manually created profile for user:", userId);
+        } catch (createError) {
+          console.error("Error during manual profile creation:", createError);
+          return false;
+        }
+      } else if (profileData.user_type !== 'restaurant') {
+        console.error("User profile exists but with wrong type:", profileData.user_type);
+        
+        // Update the profile type if it exists but with wrong type
+        try {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ 
+              user_type: 'restaurant',
+              display_name: restaurantName,
+              food_type: foodType,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+            
+          if (updateError) {
+            console.error("Profile type update failed:", updateError);
+            return false;
+          }
+          
+          console.log("Updated user profile type to restaurant");
+        } catch (updateError) {
+          console.error("Error updating profile type:", updateError);
+          return false;
+        }
+      } else {
+        console.log("Profile exists and has correct type:", profileData);
       }
       
       // Check if restaurant details exist
@@ -51,9 +106,38 @@ export const useRestaurantSignUp = () => {
         .eq('restaurant_id', userId)
         .maybeSingle();
         
-      if (detailsError || !detailsData) {
-        console.error("Restaurant details verification failed:", detailsError || "No details found");
+      if (detailsError) {
+        console.error("Restaurant details verification failed:", detailsError);
         return false;
+      }
+      
+      if (!detailsData) {
+        console.error("No restaurant details found, attempting to create them");
+        
+        // Create restaurant details if they don't exist
+        try {
+          const { error: createDetailsError } = await supabase
+            .from('restaurant_details')
+            .insert([{
+              restaurant_id: userId,
+              name: restaurantName,
+              cuisine: foodType,
+              price_range: '$',
+              description: 'Restaurant created on ' + new Date().toISOString()
+            }]);
+            
+          if (createDetailsError) {
+            console.error("Manual restaurant details creation failed:", createDetailsError);
+            return false;
+          }
+          
+          console.log("Manually created restaurant details");
+        } catch (createDetailsError) {
+          console.error("Error creating restaurant details:", createDetailsError);
+          return false;
+        }
+      } else {
+        console.log("Restaurant details found:", detailsData);
       }
       
       // Check if location exists if address was provided
@@ -64,9 +148,37 @@ export const useRestaurantSignUp = () => {
           .eq('restaurant_id', userId)
           .maybeSingle();
           
-        if (locationError || !locationData) {
-          console.error("Restaurant location verification failed:", locationError || "No location found");
+        if (locationError) {
+          console.error("Restaurant location verification failed:", locationError);
           return false;
+        }
+        
+        if (!locationData) {
+          console.error("No restaurant location found, attempting to create it");
+          
+          // Create location if it doesn't exist
+          try {
+            const { error: createLocationError } = await supabase
+              .from('restaurant_locations')
+              .insert([{
+                restaurant_id: userId,
+                address: address,
+                latitude: latitude,
+                longitude: longitude
+              }]);
+              
+            if (createLocationError) {
+              console.error("Manual restaurant location creation failed:", createLocationError);
+              return false;
+            }
+            
+            console.log("Manually created restaurant location");
+          } catch (createLocationError) {
+            console.error("Error creating restaurant location:", createLocationError);
+            return false;
+          }
+        } else {
+          console.log("Restaurant location found:", locationData);
         }
       }
       
@@ -77,7 +189,7 @@ export const useRestaurantSignUp = () => {
     }
   };
 
-  // Handle image upload
+  // Handle image upload with improved error handling
   const handleImageUpload = async (userId: string): Promise<string | null> => {
     if (!imageFile) return null;
     
@@ -131,7 +243,7 @@ export const useRestaurantSignUp = () => {
     }
   };
 
-  // Sign up process
+  // Sign up process with improved error handling and verification
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Restaurant signup form submitted with:", { 
@@ -168,10 +280,12 @@ export const useRestaurantSignUp = () => {
       
       console.log("Restaurant account created successfully:", data.user.id);
       
-      // Verify that restaurant profile was created successfully
-      const retryVerification = async (attempts = 3, delay = 1000): Promise<boolean> => {
+      // Verify that restaurant profile was created successfully with exponential backoff
+      const verifyWithBackoff = async (attempts = 5, initialDelay = 1000): Promise<boolean> => {
+        let delay = initialDelay;
+        
         for (let i = 0; i < attempts; i++) {
-          console.log(`Verification attempt ${i + 1}/${attempts}`);
+          console.log(`Verification attempt ${i + 1}/${attempts} with delay ${delay}ms`);
           const isProfileCreated = await verifyRestaurantProfileCreation(data.user.id);
           
           if (isProfileCreated) {
@@ -181,14 +295,14 @@ export const useRestaurantSignUp = () => {
           
           console.log(`Verification attempt ${i + 1} failed, waiting ${delay}ms before retrying`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 1.5; // Increase delay with each attempt
+          delay = Math.min(delay * 1.5, 10000); // Cap at 10 seconds
         }
         
         console.error("All verification attempts failed");
         return false;
       };
       
-      const profileVerified = await retryVerification();
+      const profileVerified = await verifyWithBackoff();
       
       if (!profileVerified) {
         console.warn("Could not verify restaurant profile creation, but continuing...");
