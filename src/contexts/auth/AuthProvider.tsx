@@ -23,21 +23,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener FIRST to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
+      async (event, currentSession) => {
         console.log("Auth state changed:", event, currentSession?.user?.id);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        // Use setTimeout to avoid any potential Supabase deadlocks
-        if (currentSession) {
-          setTimeout(() => {
-            getUserTypeFromSession(currentSession);
-          }, 0);
-        } else {
-          // If session is null, also set userType to null
-          setTimeout(() => {
-            getUserTypeFromSession(null);
-          }, 0);
+        // For signup or login events, ensure we have a profile
+        if (currentSession && (event === 'SIGNED_IN' || event === 'SIGNED_UP')) {
+          // Delay profile check slightly to avoid race conditions
+          setTimeout(async () => {
+            await getUserTypeFromSession(currentSession);
+          }, 100);
+        } else if (!currentSession || event === 'SIGNED_OUT') {
+          // Clear userType if logged out
+          getUserTypeFromSession(null);
         }
       }
     );
@@ -50,7 +49,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        await getUserTypeFromSession(currentSession);
+        if (currentSession) {
+          await getUserTypeFromSession(currentSession);
+        }
       } catch (error) {
         console.error("Error checking auth session:", error);
       } finally {

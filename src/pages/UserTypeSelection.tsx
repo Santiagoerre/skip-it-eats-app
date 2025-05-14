@@ -10,12 +10,13 @@ const UserTypeSelection = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedType, setSelectedType] = useState<UserType | null>(null);
-  const { session, userType } = useAuth();
+  const { session, userType, isLoading: authLoading } = useAuth();
   
   // Redirect if user is already logged in and has a type
   useEffect(() => {
-    if (session && userType) {
-      console.log("UserTypeSelection - Redirecting logged in user with type:", userType);
+    // Only run this check after auth has fully loaded and we're not in a signup flow
+    if (!authLoading && session && userType) {
+      console.log("UserTypeSelection - Logged in user with type detected:", userType);
       // User already has a type, redirect them to the appropriate page
       if (userType === "restaurant") {
         navigate("/restaurant-dashboard");
@@ -23,7 +24,7 @@ const UserTypeSelection = () => {
         navigate("/app");
       }
     }
-  }, [session, userType, navigate]);
+  }, [session, userType, navigate, authLoading]);
 
   const handleUserTypeSelection = (type: UserType) => {
     console.log("UserTypeSelection - Selected type:", type);
@@ -31,7 +32,7 @@ const UserTypeSelection = () => {
     setIsLoading(true);
     
     try {
-      // Navigate to the appropriate signup page immediately without timeout
+      // Navigate to the appropriate signup page
       if (type === "customer") {
         console.log("UserTypeSelection - Navigating to customer signup");
         navigate("/signup/customer");

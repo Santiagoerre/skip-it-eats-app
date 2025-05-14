@@ -22,18 +22,17 @@ export const useUserType = () => {
       
       if (metadataUserType) {
         console.log("Found user type in metadata:", metadataUserType);
+        
+        // Ensure profile exists
+        try {
+          await ensureUserProfile(currentSession.user.id, metadataUserType);
+          console.log("Profile creation/verification complete for:", currentSession.user.id);
+        } catch (err) {
+          console.error("Error ensuring user profile exists:", err);
+        }
+        
+        // Set the user type from metadata
         setUserType(metadataUserType);
-        
-        // Ensure profile exists with setTimeout to prevent deadlocks
-        setTimeout(async () => {
-          try {
-            const profileCreated = await ensureUserProfile(currentSession.user.id, metadataUserType);
-            console.log("Profile creation result:", profileCreated);
-          } catch (err) {
-            console.error("Error ensuring user profile exists:", err);
-          }
-        }, 100);
-        
         return;
       }
       
@@ -63,6 +62,7 @@ export const useUserType = () => {
           console.log("Attempting to create missing profile with type from metadata:", userMetadataType);
           try {
             await ensureUserProfile(currentSession.user.id, userMetadataType);
+            setUserType(userMetadataType);
           } catch (err) {
             console.error("Failed to create profile from metadata:", err);
           }

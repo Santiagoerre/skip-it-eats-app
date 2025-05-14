@@ -47,6 +47,8 @@ const App = () => {
               <Route path="/" element={<SplashScreen />} />
               <Route path="/signin" element={<SignIn />} />
               <Route path="/signup" element={<UserTypeSelection />} />
+              
+              {/* Signup routes - these don't need protection */}
               <Route path="/signup/customer" element={<CustomerSignUp />} />
               <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
               <Route path="/signup-success" element={<SignUpSuccess />} />
