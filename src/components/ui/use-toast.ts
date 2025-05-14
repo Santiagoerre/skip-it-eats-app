@@ -1,5 +1,5 @@
 
-// Export the useToast hook from our hooks directory
-import { useToast, toast } from "@/hooks/use-toast";
+// This file now simply re-exports the toast implementation from shadcn/ui
+import { toast, useToast as useToastOriginal } from "@/hooks/use-toast";
 
-export { useToast, toast };
+export { toast, useToastOriginal as useToast };

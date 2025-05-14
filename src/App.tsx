@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useState } from "react";
+import { ToastProvider } from "@/hooks/use-toast";
 
 // Pages
 import SplashScreen from "./pages/SplashScreen";
@@ -39,52 +40,54 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <TooltipProvider>
-          <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              {/* Auth callback route (highest priority) */}
-              <Route path="/auth/callback" element={<SignUpSuccess />} />
-              <Route path="/signup-success" element={<SignUpSuccess />} />
-              
-              {/* Public routes */}
-              <Route path="/" element={<SplashScreen />} />
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/signup" element={<UserTypeSelection />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              
-              {/* Signup routes with new=true query param - these don't need protection */}
-              <Route path="/signup/customer" element={<CustomerSignUp />} />
-              <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
-              
-              {/* Restaurant routes */}
-              <Route path="/restaurant-dashboard" element={
-                <ProtectedRoute requiredUserType="restaurant">
-                  <RestaurantDashboard />
-                </ProtectedRoute>
-              } />
-              
-              {/* Customer routes */}
-              <Route path="/app" element={
-                <ProtectedRoute requiredUserType="customer">
-                  <MainLayout />
-                </ProtectedRoute>
-              }>
-                <Route index element={<MapListView />} />
-                <Route path="orders" element={<OrdersPage />} />
-                <Route path="account" element={<AccountPage />} />
-              </Route>
-              
-              {/* Shared routes */}
-              <Route path="/restaurant/:id" element={
-                <ProtectedRoute>
-                  <RestaurantProfileView />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                {/* Auth callback route (highest priority) */}
+                <Route path="/auth/callback" element={<SignUpSuccess />} />
+                <Route path="/signup-success" element={<SignUpSuccess />} />
+                
+                {/* Public routes */}
+                <Route path="/" element={<SplashScreen />} />
+                <Route path="/signin" element={<SignIn />} />
+                <Route path="/signup" element={<UserTypeSelection />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                
+                {/* Signup routes with new=true query param - these don't need protection */}
+                <Route path="/signup/customer" element={<CustomerSignUp />} />
+                <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
+                
+                {/* Restaurant routes */}
+                <Route path="/restaurant-dashboard" element={
+                  <ProtectedRoute requiredUserType="restaurant">
+                    <RestaurantDashboard />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Customer routes */}
+                <Route path="/app" element={
+                  <ProtectedRoute requiredUserType="customer">
+                    <MainLayout />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<MapListView />} />
+                  <Route path="orders" element={<OrdersPage />} />
+                  <Route path="account" element={<AccountPage />} />
+                </Route>
+                
+                {/* Shared routes */}
+                <Route path="/restaurant/:id" element={
+                  <ProtectedRoute>
+                    <RestaurantProfileView />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </ToastProvider>
         </TooltipProvider>
       </BrowserRouter>
     </QueryClientProvider>
