@@ -31,6 +31,13 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         pathname: location.pathname 
       });
       
+      // Skip authentication checks for signup pages
+      if (location.pathname.includes("/signup")) {
+        console.log("ProtectedRoute - allowing access to signup route");
+        setIsCheckingAuth(false);
+        return;
+      }
+      
       setIsCheckingAuth(true);
       
       try {

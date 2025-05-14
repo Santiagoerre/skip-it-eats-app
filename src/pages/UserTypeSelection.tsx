@@ -15,6 +15,7 @@ const UserTypeSelection = () => {
   // Redirect if user is already logged in and has a type
   useEffect(() => {
     if (session && userType) {
+      console.log("UserTypeSelection - Redirecting logged in user with type:", userType);
       // User already has a type, redirect them to the appropriate page
       if (userType === "restaurant") {
         navigate("/restaurant-dashboard");
@@ -25,18 +26,19 @@ const UserTypeSelection = () => {
   }, [session, userType, navigate]);
 
   const handleUserTypeSelection = (type: UserType) => {
+    console.log("UserTypeSelection - Selected type:", type);
     setSelectedType(type);
     setIsLoading(true);
     
-    // Navigate to the appropriate signup page
-    setTimeout(() => {
-      if (type === "customer") {
-        navigate("/signup/customer");
-      } else {
-        navigate("/signup/restaurant");
-      }
-      setIsLoading(false);
-    }, 300); // Small delay to show the selection state
+    // Navigate to the appropriate signup page immediately without timeout
+    if (type === "customer") {
+      console.log("UserTypeSelection - Navigating to customer signup");
+      navigate("/signup/customer");
+    } else {
+      console.log("UserTypeSelection - Navigating to restaurant signup");
+      navigate("/signup/restaurant");
+    }
+    setIsLoading(false);
   };
 
   return (

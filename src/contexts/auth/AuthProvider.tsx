@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
+        console.log("Initial session check:", currentSession?.user?.id);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
@@ -79,6 +80,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const handleSignUp = async (email: string, password: string, userType: UserType, metadata: any = {}) => {
     try {
+      console.log("AuthProvider - Starting signup for:", email, "with type:", userType);
       const result = await signUp(email, password, userType, metadata);
       if (result.error) {
         toast({
