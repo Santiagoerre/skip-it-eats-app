@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -17,17 +16,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { getAddressSuggestions, getCoordinatesForAddress, getAddressFromCoordinates } from "@/utils/geocoding";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-
-// Fix Leaflet icon paths that are broken in production builds
-useEffect(() => {
-  // Only run once on component mount
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-  });
-}, []);
 
 interface LocationSelectorProps {
   address: string;
@@ -66,6 +54,17 @@ const LocationSelector = ({
   const leafletMarkerRef = useRef<L.Marker | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Fix Leaflet icon paths that are broken in production builds
+  useEffect(() => {
+    // Only run once on component mount
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+      iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+    });
+  }, []);
 
   // Check if already validated on mount
   useEffect(() => {
