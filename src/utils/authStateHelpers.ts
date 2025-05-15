@@ -6,14 +6,22 @@
 // Prevent duplicate writes to session storage
 const safelySetSessionItem = (key: string, value: string) => {
   if (sessionStorage.getItem(key) !== value) {
-    sessionStorage.setItem(key, value);
+    try {
+      sessionStorage.setItem(key, value);
+    } catch (error) {
+      console.error(`Failed to set ${key} in sessionStorage:`, error);
+    }
   }
 };
 
 // Prevent unnecessary removals from session storage
 const safelyRemoveSessionItem = (key: string) => {
   if (sessionStorage.getItem(key) !== null) {
-    sessionStorage.removeItem(key);
+    try {
+      sessionStorage.removeItem(key);
+    } catch (error) {
+      console.error(`Failed to remove ${key} from sessionStorage:`, error);
+    }
   }
 };
 
@@ -45,6 +53,10 @@ export const isNewSignupFlow = (): boolean => {
  * Temporarily stores user credentials for auto sign-in after signup
  */
 export const storeTemporaryCredentials = (email: string, password: string): void => {
+  if (!email || !password) {
+    console.warn("Attempted to store empty credentials");
+    return;
+  }
   safelySetSessionItem('temp_email', email);
   safelySetSessionItem('temp_password', password);
 };
@@ -71,6 +83,10 @@ export const getTemporaryCredentials = (): { email: string | null, password: str
  * Records the user ID of a newly created account
  */
 export const recordNewUserId = (userId: string): void => {
+  if (!userId) {
+    console.warn("Attempted to record empty user ID");
+    return;
+  }
   safelySetSessionItem('new_user_id', userId);
 };
 

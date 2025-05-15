@@ -23,6 +23,7 @@ const RestaurantSignUp = () => {
   
   // Track if redirect check has been performed
   const redirectCheckedRef = useRef(false);
+  const formSubmittedRef = useRef(false);
   
   // Use URL search params directly and memoize the result with useState initialization
   // This prevents re-setting the state on component re-renders
@@ -48,7 +49,7 @@ const RestaurantSignUp = () => {
   // Check redirection once with improved state management
   useEffect(() => {
     // Skip if already verified, in new signup flow, or loading
-    if (redirectCheckedRef.current || isNewSignupFlow || isLoading) {
+    if (redirectCheckedRef.current || isNewSignupFlow || isLoading || formSubmittedRef.current) {
       return;
     }
     
@@ -75,10 +76,10 @@ const RestaurantSignUp = () => {
     
     // Clean up function to prevent state modification on unmount
     return () => {
-      // Do not manipulate sessionStorage here to prevent loops
       console.log("RestaurantSignUp component unmounted");
+      // DO NOT manipulate sessionStorage here to prevent loops
     };
-  }, [resetErrors]);
+  }, [resetErrors, isNewSignupFlow]);
 
   // Validate form before submission
   const validateForm = () => {
@@ -115,7 +116,14 @@ const RestaurantSignUp = () => {
 
   // Wrap the handleSignUp with validation
   const onSubmit = async (e: React.FormEvent) => {
+    if (formSubmittedRef.current) {
+      console.log("Form already submitted, preventing duplicate submission");
+      e.preventDefault();
+      return;
+    }
+    
     if (validateForm()) {
+      formSubmittedRef.current = true;
       await handleSignUp(e);
     } else {
       e.preventDefault();

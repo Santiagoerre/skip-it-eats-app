@@ -10,7 +10,7 @@ import {
   storeTemporaryCredentials,
   recordNewUserId
 } from "@/utils/authStateHelpers";
-import { useRef } from "react";
+import { useRef, useCallback } from "react";
 
 /**
  * Hook to manage the restaurant signup process
@@ -27,6 +27,7 @@ export const useRestaurantSignUp = () => {
   // Add a ref to track if the signup process has already been initiated
   // This prevents multiple signup attempts and state updates during unmounting
   const isSigningUpRef = useRef(false);
+  const signupAttemptedRef = useRef(false);
   
   const {
     email,
@@ -42,12 +43,17 @@ export const useRestaurantSignUp = () => {
   } = signUpState;
   
   // Sign up process with improved error handling and verification
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Prevent multiple simultaneous signups or executing during unmount
     if (isSigningUpRef.current || isLoading) {
       console.log("Signup already in progress, ignoring duplicate request");
+      return;
+    }
+    
+    if (signupAttemptedRef.current) {
+      console.log("Signup already attempted, preventing duplicate submission");
       return;
     }
     
@@ -57,6 +63,7 @@ export const useRestaurantSignUp = () => {
     
     try {
       isSigningUpRef.current = true;
+      signupAttemptedRef.current = true;
       setIsLoading(true);
       
       // Store current signup state in sessionStorage to persist across redirects
@@ -104,40 +111,37 @@ export const useRestaurantSignUp = () => {
       
       if (!profileVerified) {
         console.warn("Could not verify restaurant profile creation, but continuing...");
-        toast({
-          title: "Warning",
-          description: "Your account was created, but there might be an issue with your restaurant profile. We will try to fix it.",
-          variant: "default",
-        });
+        // Don't show toast here as it can interfere with navigation
       }
       
       // Handle image upload if an image was provided
       if (imageFile && data.user.id) {
         try {
           await handleImageUpload(data.user.id, imageFile);
+          console.log("Image uploaded successfully for user:", data.user.id);
         } catch (uploadError) {
           console.error("Image upload failed, but continuing with signup:", uploadError);
-          toast({
-            title: "Image Upload Failed",
-            description: "We couldn't upload your restaurant image, but your account was created successfully. You can add an image later.",
-            variant: "default",
-          });
+          // Don't show toast here as it can interfere with navigation
         }
       }
       
-      // Only set is_new_signup right before navigation to prevent loops
+      // CRITICAL FIX: Only set is_new_signup right before navigation
+      // and ONLY if we're about to redirect to signup-success
       sessionStorage.setItem('is_new_signup', 'true');
       
-      // Queue the toast to appear after navigation to avoid state issues
+      console.log("Navigation to signup-success page now...");
+      
+      // CRITICAL FIX: Use replace:true to prevent back navigation
+      // The navigation MUST happen, so don't wrap in try/catch
+      navigate("/signup-success", { replace: true });
+      
+      // Use setTimeout to ensure the navigation happens before showing toast
       setTimeout(() => {
         toast({
           title: "Restaurant account created!",
           description: "Your restaurant account has been created successfully.",
         });
-      }, 100);
-      
-      // Navigate to success page with replace to prevent back navigation to signup
-      navigate("/signup-success", { replace: true });
+      }, 500);
       
     } catch (error: any) {
       console.error("Restaurant signup error:", error);
@@ -148,20 +152,22 @@ export const useRestaurantSignUp = () => {
       // Clear is_new_signup flag on error to prevent state conflicts
       sessionStorage.removeItem('is_new_signup');
       
-      // Use setTimeout to prevent state update during potential unmount
-      setTimeout(() => {
-        toast({
-          title: "Sign Up Failed",
-          description: error instanceof Error ? error.message : "An unexpected error occurred",
-          variant: "destructive",
-        });
-      }, 0);
+      // Reset signup flags
+      signupAttemptedRef.current = false;
+      
+      // Show error toast immediately
+      toast({
+        title: "Sign Up Failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
       // Allow new signup attempts after this one is complete
       isSigningUpRef.current = false;
     }
-  };
+  }, [email, password, restaurantName, foodType, address, latitude, longitude, imageFile, 
+      navigate, toast, signUp, handleImageUpload, setIsLoading, isLoading]);
 
   // Return all state variables and methods
   return {
