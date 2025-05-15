@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useFormValidation } from "@/hooks/useFormValidation";
 import { supabase } from "@/integrations/supabase/client";
+import { clearAllSignupFlags } from "@/utils/authStateHelpers";
 
 import SignUpForm from "@/components/auth/SignUpForm";
 import EmailPasswordFields from "@/components/auth/EmailPasswordFields";
@@ -32,9 +33,10 @@ const RestaurantSignUp = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Track form submission
+  // Track form submission and redirects with refs to prevent state updates after unmounting
   const isSubmittingRef = useRef(false);
   const redirectCheckedRef = useRef(false);
+  const successfulSignupRef = useRef(false);
   
   // Check if we should redirect user if already logged in
   useEffect(() => {
@@ -51,6 +53,16 @@ const RestaurantSignUp = () => {
       navigate("/restaurant-dashboard", { replace: true });
     }
   }, [session, userType, navigate, searchParams]);
+  
+  // Handle successful signup redirect
+  useEffect(() => {
+    if (successfulSignupRef.current && session?.user && userType === 'restaurant') {
+      console.log("Signup successful, redirecting to dashboard");
+      // Clear all signup flags before redirecting
+      clearAllSignupFlags();
+      navigate("/restaurant-dashboard", { replace: true });
+    }
+  }, [session, userType, navigate]);
   
   // Handle image upload
   const handleImageChange = (file: File) => {
@@ -90,7 +102,7 @@ const RestaurantSignUp = () => {
     return true;
   };
 
-  // Handle form submission - using the pattern from CustomerSignUp
+  // Handle form submission
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -147,7 +159,7 @@ const RestaurantSignUp = () => {
         }
       }
       
-      // Success! Show toast and redirect
+      // Success! Show toast and mark signup as successful
       toast({
         title: "Restaurant account created!",
         description: "Your restaurant account has been created successfully.",
@@ -155,8 +167,10 @@ const RestaurantSignUp = () => {
       
       // Set signup flag right before navigation
       sessionStorage.setItem('is_new_signup', 'true');
+      successfulSignupRef.current = true;
       
-      // Navigate to success page
+      // Navigate to success page instead of directly to dashboard
+      // This gives time for session to be established
       navigate("/signup-success", { replace: true });
     } catch (error: any) {
       console.error("Restaurant signup error:", error);

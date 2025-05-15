@@ -1,9 +1,10 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { Loader2 } from "lucide-react";
 import { ensureUserProfile } from "@/services/authService";
+import { clearAllSignupFlags } from "@/utils/authStateHelpers";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,13 +16,20 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
   const location = useLocation();
   const { isLoading, session, user, userType } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const authCheckCompletedRef = useRef(false);
 
   // Check if we're in a signup flow
   const isSignupRoute = location.pathname.includes("/signup");
   const isNewSignupFlow = location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true';
+  const isSignupSuccess = location.pathname.includes("/signup-success");
 
   useEffect(() => {
     const verifyAuth = async () => {
+      // Prevent multiple simultaneous auth checks
+      if (authCheckCompletedRef.current) {
+        return;
+      }
+      
       // Wait for the auth context to initialize
       if (isLoading) {
         return;
@@ -34,22 +42,26 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         requiredUserType,
         pathname: location.pathname,
         isSignupRoute,
-        isNewSignupFlow
+        isNewSignupFlow,
+        isSignupSuccess
       });
       
       // IMPORTANT: Skip ALL checks for signup routes or auth callback routes
-      if (isSignupRoute || location.pathname.includes("/auth/callback") || location.pathname.includes("/signup-success")) {
+      if (isSignupRoute || location.pathname.includes("/auth/callback") || isSignupSuccess) {
         console.log("ProtectedRoute - allowing access to signup/auth route without checks:", location.pathname);
         setIsCheckingAuth(false);
         return;
       }
       
       setIsCheckingAuth(true);
+      authCheckCompletedRef.current = true;
       
       try {
         // If no session, redirect to sign in
         if (!session) {
           console.log("No session, redirecting to signin from", location.pathname);
+          // Clear any lingering signup flags
+          clearAllSignupFlags();
           navigate("/signin", { state: { from: location.pathname } });
           return;
         }
@@ -93,7 +105,12 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
     };
 
     verifyAuth();
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow]);
+    
+    return () => {
+      // Reset the auth check ref when component unmounts
+      authCheckCompletedRef.current = false;
+    };
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow, isSignupSuccess]);
 
   // Helper function to redirect based on user type
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {

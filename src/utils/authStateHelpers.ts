@@ -1,4 +1,3 @@
-
 /**
  * Helper functions for managing auth state and signup flow flags
  */
@@ -108,9 +107,15 @@ export const clearNewUserId = (): void => {
  * Clears all signup related session storage values at once
  */
 export const clearAllSignupFlags = (): void => {
+  console.log("Clearing all signup flags");
   clearNewSignupFlag();
   clearTemporaryCredentials();
   clearNewUserId();
   safelyRemoveSessionItem('restaurant_redirect_attempted');
   safelyRemoveSessionItem('shown_welcome_toast');
+  
+  // Additional flags that might cause loops
+  safelyRemoveSessionItem('profile_check_completed');
+  safelyRemoveSessionItem('redirect_in_progress');
+  safelyRemoveSessionItem('auth_check_completed');
 };
