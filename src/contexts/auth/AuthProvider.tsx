@@ -1,3 +1,4 @@
+
 import { createContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,46 +72,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const handleSignUp = async (email: string, password: string, restaurantData: any) => {
-    console.log("AuthProvider - Starting signup for:", email);
-    console.log("llegamos hasta aqui")
-    const { user, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-    });
-
-    if (error) {
-        console.error('Error signing up:', error);
-        return { error };
+  const handleSignUp = async (email: string, password: string, userType: UserType, metadata: any = {}) => {
+    console.log(`Starting ${userType} signup with:`, { email, userType, metadata });
+    try {
+      // Standardize all signups to go through the authFunctions.signUp
+      const result = await signUp(email, password, userType, metadata);
+      
+      if (result.error) {
+        console.error("Signup error:", result.error);
+        toast({
+          title: "Error creating account",
+          description: result.error.message || "Something went wrong during signup. Please try again.",
+          variant: "destructive",
+        });
+        throw result.error;
+      }
+      
+      // Success path - consistent for both customer and restaurant
+      console.log("Signup successful:", result.data);
+      return result;
+    } catch (error: any) {
+      console.error("Error in handleSignUp:", error);
+      toast({
+        title: "Signup Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+      throw error;
     }
-
-    // Ensure user is defined before accessing user.id
-    if (!user) {
-        console.error('User object is undefined');
-        return { error: 'User object is undefined' };
-    }
-
-    // Proceed with creating the restaurant profile
-    console.log('Inserting restaurant profile with data:', {
-        user_id: user.id,
-        ...restaurantData
-    });
-
-    const { data, profileError } = await supabase
-        .from('profiles')
-        .insert([{
-            user_id: user.id,
-            ...restaurantData
-        }]);
-
-    if (profileError) {
-        console.error('Error creating restaurant profile:', profileError.message);
-        return { error: profileError.message };
-    } else {
-        console.log('Restaurant profile created:', data);
-    }
-
-    return { data };
   };
 
   const handleSignOut = async () => {
