@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
@@ -82,26 +81,26 @@ export const useRestaurantSignUp = () => {
       console.log("Signing up with metadata:", metadata);
       
       // Register with Supabase with additional metadata
-      const { data, error } = await signUp(email, password, "restaurant", metadata);
+      const response = await signUp(email, password, "restaurant", metadata);
       
-      if (error) {
-        console.error("Signup failed with error:", error);
-        throw new Error(error.message || "Failed to create user account");
+      if (response.error) {
+        console.error("Signup failed with error:", response.error);
+        throw new Error(response.error.message || "Failed to create user account");
       }
       
-      if (!data?.user) {
+      if (!response.data?.user) {
         console.error("No user data returned from signup");
         throw new Error("User account could not be created");
       }
       
-      console.log("Restaurant account created successfully:", data.user.id);
+      console.log("Restaurant account created successfully:", response.data.user.id);
       
       // Store new user ID (using the utility function)
-      recordNewUserId(data.user.id);
+      recordNewUserId(response.data.user.id);
       
       // Verify that restaurant profile was created successfully with exponential backoff
       const profileVerified = await verifyWithBackoff(
-        data.user.id,
+        response.data.user.id,
         restaurantName,
         foodType,
         address, 
@@ -115,10 +114,10 @@ export const useRestaurantSignUp = () => {
       }
       
       // Handle image upload if an image was provided
-      if (imageFile && data.user.id) {
+      if (imageFile && response.data.user.id) {
         try {
-          await handleImageUpload(data.user.id, imageFile);
-          console.log("Image uploaded successfully for user:", data.user.id);
+          await handleImageUpload(response.data.user.id, imageFile);
+          console.log("Image uploaded successfully for user:", response.data.user.id);
         } catch (uploadError) {
           console.error("Image upload failed, but continuing with signup:", uploadError);
           // Don't show toast here as it can interfere with navigation

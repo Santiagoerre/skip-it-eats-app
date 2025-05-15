@@ -71,39 +71,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const handleSignUp = async (email: string, password: string, userType: UserType, metadata: any = {}) => {
-    try {
-      console.log("AuthProvider - Starting signup for:", email, "with type:", userType);
-      const { user, error } = await supabase.auth.signUp({
+  const handleSignUp = async (email: string, password: string, restaurantData: any) => {
+    console.log("AuthProvider - Starting signup for:", email);
+    console.log("llegamos hasta aqui")
+    const { user, error } = await supabase.auth.signUp({
         email: email,
         password: password,
-      });
+    });
 
-      if (error) {
-        console.error('Error signing up:', error.message);
+    if (error) {
+        console.error('Error signing up:', error);
         return { error };
-      }
-
-      // After signing up, you can create a profile
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .insert([{ user_id: user.id, email: email }]);
-
-      if (profileError) {
-        console.error('Error creating profile:', profileError.message);
-      } else {
-        console.log('Profile created:', data);
-      }
-
-      return { user };
-    } catch (error: any) {
-      toast({
-        title: "Error signing up",
-        description: error.message || "Please check your information and try again",
-        variant: "destructive",
-      });
-      return { error }; 
     }
+
+    // Ensure user is defined before accessing user.id
+    if (!user) {
+        console.error('User object is undefined');
+        return { error: 'User object is undefined' };
+    }
+
+    // Proceed with creating the restaurant profile
+    console.log('Inserting restaurant profile with data:', {
+        user_id: user.id,
+        ...restaurantData
+    });
+
+    const { data, profileError } = await supabase
+        .from('profiles')
+        .insert([{
+            user_id: user.id,
+            ...restaurantData
+        }]);
+
+    if (profileError) {
+        console.error('Error creating restaurant profile:', profileError.message);
+        return { error: profileError.message };
+    } else {
+        console.log('Restaurant profile created:', data);
+    }
+
+    return { data };
   };
 
   const handleSignOut = async () => {
