@@ -109,6 +109,8 @@ export const clearNewUserId = (): void => {
  */
 export const clearAllSignupFlags = (): void => {
   console.log("Clearing all signup flags");
+  
+  // Core signup flags
   clearNewSignupFlag();
   clearTemporaryCredentials();
   clearNewUserId();
@@ -120,18 +122,45 @@ export const clearAllSignupFlags = (): void => {
   safelyRemoveSessionItem('redirect_in_progress');
   safelyRemoveSessionItem('auth_check_completed');
   safelyRemoveSessionItem('redirect_attempted');
-  
-  // Clear any potential redirection flags in SessionStorage
   safelyRemoveSessionItem('redirecting_to_dashboard');
   safelyRemoveSessionItem('auth_initialized');
   safelyRemoveSessionItem('user_type_verified');
+  safelyRemoveSessionItem('user_verified');
+  safelyRemoveSessionItem('profile_verified');
+  safelyRemoveSessionItem('signup_complete');
+  safelyRemoveSessionItem('signup_success');
+  safelyRemoveSessionItem('redirect_started');
+  safelyRemoveSessionItem('profile_created');
+  safelyRemoveSessionItem('restaurant_created');
   
   // Remove any URL parameters that might trigger signup redirects
   if (window.history && window.history.replaceState) {
-    const url = new URL(window.location.href);
-    if (url.searchParams.has('new')) {
-      url.searchParams.delete('new');
-      window.history.replaceState({}, document.title, url.toString());
+    try {
+      const url = new URL(window.location.href);
+      let modified = false;
+      
+      // Clear standard signup parameters
+      if (url.searchParams.has('new')) {
+        url.searchParams.delete('new');
+        modified = true;
+      }
+      
+      if (url.searchParams.has('signup')) {
+        url.searchParams.delete('signup');
+        modified = true;
+      }
+      
+      if (url.searchParams.has('success')) {
+        url.searchParams.delete('success');
+        modified = true;
+      }
+      
+      // Only update history if we changed the URL
+      if (modified) {
+        window.history.replaceState({}, document.title, url.toString());
+      }
+    } catch (error) {
+      console.error("Failed to clean URL parameters:", error);
     }
   }
 };

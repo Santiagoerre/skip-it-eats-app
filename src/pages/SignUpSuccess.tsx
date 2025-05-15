@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Check } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
@@ -9,22 +9,27 @@ const SignUpSuccess = () => {
   const navigate = useNavigate();
   const { userType, isLoading } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
+  const redirectAttemptedRef = useRef(false);
   
   useEffect(() => {
     let redirectTimeout: number;
+    let maxTimeout: number;
     
     const handleRedirect = () => {
-      // Don't redirect if already in progress
-      if (redirecting) return;
+      // Don't redirect if already in progress or previously attempted
+      if (redirecting || redirectAttemptedRef.current) return;
       
       setRedirecting(true);
+      redirectAttemptedRef.current = true;
       console.log("Preparing to redirect based on user type:", userType);
       
       // Clear all signup flags to prevent redirect loops
       clearAllSignupFlags();
       
-      // Force a short delay to allow authentication state to settle
+      // Force a longer delay to allow authentication state to fully settle
       redirectTimeout = window.setTimeout(() => {
+        console.log("Executing delayed redirect for user type:", userType);
+        
         if (userType === "restaurant") {
           console.log("Redirecting to restaurant dashboard");
           navigate("/restaurant-dashboard", { replace: true });
@@ -36,7 +41,7 @@ const SignUpSuccess = () => {
           console.log("No user type found, redirecting to home");
           navigate("/", { replace: true });
         }
-      }, 2500); // Increased delay to ensure auth state is fully processed
+      }, 3000); // Increased delay to 3 seconds to ensure auth state is fully processed
     };
     
     // If auth is loaded and we have a user type, redirect
@@ -45,13 +50,13 @@ const SignUpSuccess = () => {
       handleRedirect();
     }
     
-    // Always redirect after a maximum timeout (6 seconds)
-    const maxTimeout = window.setTimeout(() => {
-      if (!redirecting) {
+    // Always redirect after a maximum timeout (7 seconds)
+    maxTimeout = window.setTimeout(() => {
+      if (!redirectAttemptedRef.current) {
         console.log("Maximum wait time exceeded, redirecting to default page");
         handleRedirect();
       }
-    }, 6000); // Increased from 5000 to 6000ms
+    }, 7000); // Increased from 6000 to 7000ms for extra safety
     
     return () => {
       clearTimeout(redirectTimeout);

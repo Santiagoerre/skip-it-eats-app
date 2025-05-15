@@ -17,13 +17,27 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
   const { isLoading, session, user, userType } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const authCheckCompletedRef = useRef(false);
+  const pathCheckedRef = useRef(false);
 
   // Check if we're in a signup flow
   const isSignupRoute = location.pathname.includes("/signup");
   const isNewSignupFlow = location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true';
   const isSignupSuccess = location.pathname.includes("/signup-success");
+  const isAuthCallback = location.pathname.includes("/auth/callback");
 
   useEffect(() => {
+    // Skip checks for specific paths on initial render
+    if (!pathCheckedRef.current) {
+      pathCheckedRef.current = true;
+      
+      // IMPORTANT: Skip ALL checks for signup routes, auth callbacks, or signup success
+      if (isSignupRoute || isAuthCallback || isSignupSuccess) {
+        console.log("ProtectedRoute - allowing access without checks for special route:", location.pathname);
+        setIsCheckingAuth(false);
+        return;
+      }
+    }
+    
     const verifyAuth = async () => {
       // Prevent multiple simultaneous auth checks
       if (authCheckCompletedRef.current) {
@@ -40,15 +54,12 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         hasSession: !!session, 
         currentUserType: userType, 
         requiredUserType,
-        pathname: location.pathname,
-        isSignupRoute,
-        isNewSignupFlow,
-        isSignupSuccess
+        pathname: location.pathname
       });
       
-      // IMPORTANT: Skip ALL checks for signup routes or auth callback routes
-      if (isSignupRoute || location.pathname.includes("/auth/callback") || isSignupSuccess) {
-        console.log("ProtectedRoute - allowing access to signup/auth route without checks:", location.pathname);
+      // Skip again for special routes (belt and suspenders)
+      if (isSignupRoute || isAuthCallback || isSignupSuccess) {
+        console.log("ProtectedRoute - allowing access to special route without checks:", location.pathname);
         setIsCheckingAuth(false);
         return;
       }
@@ -110,7 +121,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       // Reset the auth check ref when component unmounts
       authCheckCompletedRef.current = false;
     };
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow, isSignupSuccess]);
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow, isSignupSuccess, isAuthCallback]);
 
   // Helper function to redirect based on user type
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
