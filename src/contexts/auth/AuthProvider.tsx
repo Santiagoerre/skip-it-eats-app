@@ -1,4 +1,3 @@
-
 import { createContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,36 +21,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [session, userType]);
 
   useEffect(() => {
-    // Set up auth state listener FIRST to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log("Auth state changed:", event, currentSession?.user?.id);
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        
-        // For signup or login events, ensure we have a profile
-        if (currentSession && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-          // Delay profile check to allow database triggers to complete
-          setTimeout(async () => {
-            console.log("Checking user type after auth event:", event);
-            await getUserTypeFromSession(currentSession);
-          }, 1500);
-        } else if (!currentSession || event === 'SIGNED_OUT') {
-          // Clear userType if logged out
+        if (event === 'SIGNED_OUT' || !currentSession) {
+          setSession(null);
+          setUser(null);
           getUserTypeFromSession(null);
+          return;
+        }
+
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+          setSession(currentSession);
+          setUser(currentSession.user);
+          
+          await getUserTypeFromSession(currentSession);
         }
       }
     );
 
-    // Then check for existing session
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
-        console.log("Initial session check:", currentSession?.user?.id);
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        
         if (currentSession) {
+          setSession(currentSession);
+          setUser(currentSession.user);
           await getUserTypeFromSession(currentSession);
         }
       } catch (error) {
@@ -62,10 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     initializeAuth();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [getUserTypeFromSession]);
 
   const handleSignIn = async (email: string, password: string) => {
@@ -84,15 +74,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const handleSignUp = async (email: string, password: string, userType: UserType, metadata: any = {}) => {
     try {
       console.log("AuthProvider - Starting signup for:", email, "with type:", userType);
-      const result = await signUp(email, password, userType, metadata);
-      if (result.error) {
-        toast({
-          title: "Error signing up",
-          description: result.error.message || "Please check your information and try again",
-          variant: "destructive",
-        });
+      const { user, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+      });
+
+      if (error) {
+        console.error('Error signing up:', error.message);
+        return { error };
       }
-      return result;
+
+      // After signing up, you can create a profile
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .insert([{ user_id: user.id, email: email }]);
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError.message);
+      } else {
+        console.log('Profile created:', data);
+      }
+
+      return { user };
     } catch (error: any) {
       toast({
         title: "Error signing up",

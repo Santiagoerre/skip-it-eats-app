@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
@@ -46,41 +45,21 @@ const RestaurantSignUp = () => {
     handleImageChange
   } = useRestaurantSignUp();
 
-  // Check redirection once with improved state management
+  // Modify the redirect effect to be more specific
   useEffect(() => {
-    // Skip if already verified, in new signup flow, or loading
+    // Only run this effect when session or userType changes
     if (redirectCheckedRef.current || isNewSignupFlow || isLoading || formSubmittedRef.current) {
       return;
     }
-    
-    // Mark check as performed to prevent repeated checks
-    redirectCheckedRef.current = true;
-    
-    console.log("RestaurantSignUp - Checking redirect conditions:", {
-      isNewSignupFlow,
-      session: !!session,
-      userType
-    });
-    
-    // If user has a complete restaurant profile, redirect to dashboard
-    if (session && userType === 'restaurant') {
-      console.log("RestaurantSignUp - User already has restaurant profile, redirecting to dashboard");
+
+    // Only redirect if we have a complete restaurant profile
+    if (session?.user && userType === 'restaurant') {
+      console.log("RestaurantSignUp - User has restaurant profile, redirecting");
+      redirectCheckedRef.current = true;
       navigate("/restaurant-dashboard", { replace: true });
     }
-  }, [session, userType, navigate, isNewSignupFlow, isLoading]);
+  }, [session?.user, userType, navigate, isNewSignupFlow, isLoading]);
   
-  // Only reset errors on mount, not on every render
-  useEffect(() => {
-    console.log("RestaurantSignUp component mounted, isNewSignupFlow:", isNewSignupFlow);
-    resetErrors();
-    
-    // Clean up function to prevent state modification on unmount
-    return () => {
-      console.log("RestaurantSignUp component unmounted");
-      // DO NOT manipulate sessionStorage here to prevent loops
-    };
-  }, [resetErrors, isNewSignupFlow]);
-
   // Validate form before submission
   const validateForm = () => {
     // Validate form fields
