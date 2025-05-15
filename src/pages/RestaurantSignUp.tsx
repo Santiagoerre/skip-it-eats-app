@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useFormValidation } from "@/hooks/useFormValidation";
+import { supabase } from "@/integrations/supabase/client";
 
 import SignUpForm from "@/components/auth/SignUpForm";
 import EmailPasswordFields from "@/components/auth/EmailPasswordFields";
