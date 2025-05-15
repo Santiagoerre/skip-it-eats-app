@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -20,13 +20,17 @@ const RestaurantSignUp = () => {
   const { session, user, userType } = useAuth();
   const { toast } = useToast();
   const { errors, validateEmailAndPassword, validateLocationData, resetErrors } = useFormValidation();
-  const [redirectAttempted, setRedirectAttempted] = useState(false);
   
-  // Use URL search params directly instead of session storage to prevent state conflicts
-  const [isNewSignupFlow, setIsNewSignupFlow] = useState(
-    searchParams.get('new') === 'true' || sessionStorage.getItem('is_new_signup') === 'true'
-  );
+  // Track if redirect check has been performed
+  const redirectCheckedRef = useRef(false);
   
+  // Use URL search params directly and memoize the result with useState initialization
+  // This prevents re-setting the state on component re-renders
+  const [isNewSignupFlow] = useState(() => {
+    return searchParams.get('new') === 'true' || sessionStorage.getItem('is_new_signup') === 'true';
+  });
+  
+  // Get all restaurant signup functionality
   const {
     email, setEmail,
     password, setPassword,
@@ -41,38 +45,38 @@ const RestaurantSignUp = () => {
     handleImageChange
   } = useRestaurantSignUp();
 
-  // Check redirection only once with improved state management
+  // Check redirection once with improved state management
   useEffect(() => {
-    console.log("RestaurantSignUp - Checking redirect conditions:", {
-      isNewSignupFlow,
-      redirectAttempted,
-      session: !!session,
-      userType,
-      isLoading
-    });
-    
-    // Skip redirect check for new signup flow, loading state, or if already attempted
-    if (isNewSignupFlow || isLoading || redirectAttempted) {
+    // Skip if already verified, in new signup flow, or loading
+    if (redirectCheckedRef.current || isNewSignupFlow || isLoading) {
       return;
     }
-
-    // Only attempt redirect once
-    setRedirectAttempted(true);
+    
+    // Mark check as performed to prevent repeated checks
+    redirectCheckedRef.current = true;
+    
+    console.log("RestaurantSignUp - Checking redirect conditions:", {
+      isNewSignupFlow,
+      session: !!session,
+      userType
+    });
     
     // If user has a complete restaurant profile, redirect to dashboard
     if (session && userType === 'restaurant') {
       console.log("RestaurantSignUp - User already has restaurant profile, redirecting to dashboard");
       navigate("/restaurant-dashboard", { replace: true });
     }
-  }, [session, userType, navigate, redirectAttempted, isNewSignupFlow, isLoading]);
+  }, [session, userType, navigate, isNewSignupFlow, isLoading]);
   
-  // CRITICAL FIX: Remove the problematic cleanup function that was causing the loop
+  // Only reset errors on mount, not on every render
   useEffect(() => {
     console.log("RestaurantSignUp component mounted, isNewSignupFlow:", isNewSignupFlow);
+    resetErrors();
     
-    // We do not manipulate session storage in the cleanup function anymore
+    // Clean up function to prevent state modification on unmount
     return () => {
-      resetErrors();
+      // Do not manipulate sessionStorage here to prevent loops
+      console.log("RestaurantSignUp component unmounted");
     };
   }, [resetErrors]);
 

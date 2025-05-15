@@ -3,18 +3,32 @@
  * Helper functions for managing auth state and signup flow flags
  */
 
+// Prevent duplicate writes to session storage
+const safelySetSessionItem = (key: string, value: string) => {
+  if (sessionStorage.getItem(key) !== value) {
+    sessionStorage.setItem(key, value);
+  }
+};
+
+// Prevent unnecessary removals from session storage
+const safelyRemoveSessionItem = (key: string) => {
+  if (sessionStorage.getItem(key) !== null) {
+    sessionStorage.removeItem(key);
+  }
+};
+
 /**
  * Marks the current user flow as a new signup 
  */
 export const markAsNewSignupFlow = (): void => {
-  sessionStorage.setItem('is_new_signup', 'true');
+  safelySetSessionItem('is_new_signup', 'true');
 };
 
 /**
  * Clears the new signup flow flag
  */
 export const clearNewSignupFlag = (): void => {
-  sessionStorage.removeItem('is_new_signup');
+  safelyRemoveSessionItem('is_new_signup');
 };
 
 /**
@@ -31,16 +45,16 @@ export const isNewSignupFlow = (): boolean => {
  * Temporarily stores user credentials for auto sign-in after signup
  */
 export const storeTemporaryCredentials = (email: string, password: string): void => {
-  sessionStorage.setItem('temp_email', email);
-  sessionStorage.setItem('temp_password', password);
+  safelySetSessionItem('temp_email', email);
+  safelySetSessionItem('temp_password', password);
 };
 
 /**
  * Clears temporary credentials from session storage
  */
 export const clearTemporaryCredentials = (): void => {
-  sessionStorage.removeItem('temp_email');
-  sessionStorage.removeItem('temp_password');
+  safelyRemoveSessionItem('temp_email');
+  safelyRemoveSessionItem('temp_password');
 };
 
 /**
@@ -57,7 +71,7 @@ export const getTemporaryCredentials = (): { email: string | null, password: str
  * Records the user ID of a newly created account
  */
 export const recordNewUserId = (userId: string): void => {
-  sessionStorage.setItem('new_user_id', userId);
+  safelySetSessionItem('new_user_id', userId);
 };
 
 /**
@@ -71,7 +85,7 @@ export const getNewUserId = (): string | null => {
  * Clears the new user ID from session storage
  */
 export const clearNewUserId = (): void => {
-  sessionStorage.removeItem('new_user_id');
+  safelyRemoveSessionItem('new_user_id');
 };
 
 /**
@@ -81,6 +95,6 @@ export const clearAllSignupFlags = (): void => {
   clearNewSignupFlag();
   clearTemporaryCredentials();
   clearNewUserId();
-  sessionStorage.removeItem('restaurant_redirect_attempted');
-  sessionStorage.removeItem('shown_welcome_toast');
+  safelyRemoveSessionItem('restaurant_redirect_attempted');
+  safelyRemoveSessionItem('shown_welcome_toast');
 };
