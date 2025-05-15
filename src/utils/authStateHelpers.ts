@@ -1,3 +1,4 @@
+
 /**
  * Helper functions for managing auth state and signup flow flags
  */
@@ -111,11 +112,26 @@ export const clearAllSignupFlags = (): void => {
   clearNewSignupFlag();
   clearTemporaryCredentials();
   clearNewUserId();
+  
+  // Clear additional flags that might cause loops or redirection issues
   safelyRemoveSessionItem('restaurant_redirect_attempted');
   safelyRemoveSessionItem('shown_welcome_toast');
-  
-  // Additional flags that might cause loops
   safelyRemoveSessionItem('profile_check_completed');
   safelyRemoveSessionItem('redirect_in_progress');
   safelyRemoveSessionItem('auth_check_completed');
+  safelyRemoveSessionItem('redirect_attempted');
+  
+  // Clear any potential redirection flags in SessionStorage
+  safelyRemoveSessionItem('redirecting_to_dashboard');
+  safelyRemoveSessionItem('auth_initialized');
+  safelyRemoveSessionItem('user_type_verified');
+  
+  // Remove any URL parameters that might trigger signup redirects
+  if (window.history && window.history.replaceState) {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('new')) {
+      url.searchParams.delete('new');
+      window.history.replaceState({}, document.title, url.toString());
+    }
+  }
 };

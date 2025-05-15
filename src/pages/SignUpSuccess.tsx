@@ -23,31 +23,35 @@ const SignUpSuccess = () => {
       // Clear all signup flags to prevent redirect loops
       clearAllSignupFlags();
       
-      // Short delay to allow authentication state to settle
+      // Force a short delay to allow authentication state to settle
       redirectTimeout = window.setTimeout(() => {
         if (userType === "restaurant") {
+          console.log("Redirecting to restaurant dashboard");
           navigate("/restaurant-dashboard", { replace: true });
         } else if (userType === "customer") {
+          console.log("Redirecting to customer app");
           navigate("/app", { replace: true });
         } else {
           // If user type is unknown, redirect to home
+          console.log("No user type found, redirecting to home");
           navigate("/", { replace: true });
         }
-      }, 2000);
+      }, 2500); // Increased delay to ensure auth state is fully processed
     };
     
     // If auth is loaded and we have a user type, redirect
     if (!isLoading && userType) {
+      console.log("Auth loaded and user type available:", userType);
       handleRedirect();
     }
     
-    // Always redirect after a maximum timeout (5 seconds)
+    // Always redirect after a maximum timeout (6 seconds)
     const maxTimeout = window.setTimeout(() => {
       if (!redirecting) {
         console.log("Maximum wait time exceeded, redirecting to default page");
         handleRedirect();
       }
-    }, 5000);
+    }, 6000); // Increased from 5000 to 6000ms
     
     return () => {
       clearTimeout(redirectTimeout);
