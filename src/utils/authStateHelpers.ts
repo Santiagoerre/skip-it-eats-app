@@ -105,6 +105,27 @@ export const clearNewUserId = (): void => {
 };
 
 /**
+ * Records the OAuth provider being used during signup
+ */
+export const recordOAuthProvider = (provider: string): void => {
+  safelySetSessionItem('oauth_provider', provider);
+};
+
+/**
+ * Gets the OAuth provider used during signup
+ */
+export const getOAuthProvider = (): string | null => {
+  return sessionStorage.getItem('oauth_provider');
+};
+
+/**
+ * Clears the OAuth provider from session storage
+ */
+export const clearOAuthProvider = (): void => {
+  safelyRemoveSessionItem('oauth_provider');
+};
+
+/**
  * Clears all signup related session storage values at once
  */
 export const clearAllSignupFlags = (): void => {
@@ -114,6 +135,7 @@ export const clearAllSignupFlags = (): void => {
   clearNewSignupFlag();
   clearTemporaryCredentials();
   clearNewUserId();
+  clearOAuthProvider();
   
   // Clear additional flags that might cause loops or redirection issues
   safelyRemoveSessionItem('restaurant_redirect_attempted');
@@ -132,6 +154,19 @@ export const clearAllSignupFlags = (): void => {
   safelyRemoveSessionItem('redirect_started');
   safelyRemoveSessionItem('profile_created');
   safelyRemoveSessionItem('restaurant_created');
+  safelyRemoveSessionItem('google_auth_pending');
+  safelyRemoveSessionItem('oauth_flow_started');
+  safelyRemoveSessionItem('oauth_provider');
+  safelyRemoveSessionItem('oauth_redirect_pending');
+  
+  // Local storage cleanup (for persisted states)
+  try {
+    localStorage.removeItem('skipit_auth_redirect_pending');
+    localStorage.removeItem('skipit_signup_pending');
+    localStorage.removeItem('skipit_oauth_flow');
+  } catch (error) {
+    console.error("Failed to clean localStorage items:", error);
+  }
   
   // Remove any URL parameters that might trigger signup redirects
   if (window.history && window.history.replaceState) {
@@ -140,24 +175,31 @@ export const clearAllSignupFlags = (): void => {
       let modified = false;
       
       // Clear standard signup parameters
-      if (url.searchParams.has('new')) {
-        url.searchParams.delete('new');
-        modified = true;
-      }
+      const paramsToRemove = [
+        'new', 'signup', 'success', 'provider', 
+        'oauth', 'flow', 'access_token', 'token_type', 
+        'expires_in', 'state', 'provider_token'
+      ];
       
-      if (url.searchParams.has('signup')) {
-        url.searchParams.delete('signup');
-        modified = true;
-      }
-      
-      if (url.searchParams.has('success')) {
-        url.searchParams.delete('success');
-        modified = true;
+      for (const param of paramsToRemove) {
+        if (url.searchParams.has(param)) {
+          url.searchParams.delete(param);
+          modified = true;
+        }
       }
       
       // Only update history if we changed the URL
       if (modified) {
         window.history.replaceState({}, document.title, url.toString());
+      }
+      
+      // Also clean up any hash fragments that might include OAuth tokens
+      if (window.location.hash && (
+        window.location.hash.includes('access_token') || 
+        window.location.hash.includes('token_type')
+      )) {
+        window.history.replaceState({}, document.title, 
+          window.location.pathname + window.location.search);
       }
     } catch (error) {
       console.error("Failed to clean URL parameters:", error);

@@ -19,11 +19,12 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
   const authCheckCompletedRef = useRef(false);
   const pathCheckedRef = useRef(false);
 
-  // Check if we're in a signup flow
+  // Check if we're in a signup flow or OAuth callback
   const isSignupRoute = location.pathname.includes("/signup");
   const isNewSignupFlow = location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true';
   const isSignupSuccess = location.pathname.includes("/signup-success");
   const isAuthCallback = location.pathname.includes("/auth/callback");
+  const isOAuthCallback = location.hash.includes("access_token") || location.search.includes("access_token");
 
   useEffect(() => {
     // Skip checks for specific paths on initial render
@@ -31,7 +32,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       pathCheckedRef.current = true;
       
       // IMPORTANT: Skip ALL checks for signup routes, auth callbacks, or signup success
-      if (isSignupRoute || isAuthCallback || isSignupSuccess) {
+      if (isSignupRoute || isAuthCallback || isSignupSuccess || isOAuthCallback) {
         console.log("ProtectedRoute - allowing access without checks for special route:", location.pathname);
         setIsCheckingAuth(false);
         return;
@@ -58,7 +59,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       });
       
       // Skip again for special routes (belt and suspenders)
-      if (isSignupRoute || isAuthCallback || isSignupSuccess) {
+      if (isSignupRoute || isAuthCallback || isSignupSuccess || isOAuthCallback) {
         console.log("ProtectedRoute - allowing access to special route without checks:", location.pathname);
         setIsCheckingAuth(false);
         return;
@@ -121,7 +122,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       // Reset the auth check ref when component unmounts
       authCheckCompletedRef.current = false;
     };
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow, isSignupSuccess, isAuthCallback]);
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow, isSignupSuccess, isAuthCallback, isOAuthCallback]);
 
   // Helper function to redirect based on user type
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
