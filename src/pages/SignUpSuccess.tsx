@@ -16,6 +16,7 @@ const SignUpSuccess = () => {
   const maxTimeoutRef = useRef<number | null>(null);
   const redirectTimeoutRef = useRef<number | null>(null);
   const progressiveTimeoutRef = useRef<number | null>(null);
+  const redirectProcessStartedRef = useRef(false);
   
   useEffect(() => {
     // Check if we're in a callback URL by looking for tokens or errors in URL
@@ -25,7 +26,7 @@ const SignUpSuccess = () => {
     
     // Parse URL to check for redirect-specific parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const isNewSignup = urlParams.get('new') === 'true' || sessionStorage.getItem('is_new_signup') === 'true';
+    const isNewSignup = urlParams.get('new') === 'true' || localStorage.getItem('skipit_new_signup') === 'true';
     
     console.log("SignUpSuccess mounted:", { 
       userType, 
@@ -38,8 +39,18 @@ const SignUpSuccess = () => {
       isNewSignup
     });
     
+    // Prevent duplicate initialization of the redirect process
+    if (redirectProcessStartedRef.current) {
+      console.log("Redirect process already started, skipping initialization");
+      return;
+    }
+    
+    redirectProcessStartedRef.current = true;
+    
     // Store critical state information in localStorage for persistence across redirects
-    preserveRedirectState(user?.id, userType);
+    if (user?.id && userType) {
+      preserveRedirectState(user.id, userType);
+    }
     
     const getUserTypeFromMetadata = () => {
       if (!user) return null;
@@ -79,7 +90,10 @@ const SignUpSuccess = () => {
     };
     
     const executeRedirect = (detectedUserType: "restaurant" | "customer" | null) => {
-      if (redirectAttemptedRef.current) return;
+      if (redirectAttemptedRef.current) {
+        console.log("Redirect already attempted, skipping");
+        return;
+      }
       
       setRedirecting(true);
       redirectAttemptedRef.current = true;
@@ -87,16 +101,17 @@ const SignUpSuccess = () => {
       console.log("Executing redirect based on detected user type:", detectedUserType);
       
       try {
-        // Only clear flags right before redirect
         if (detectedUserType === "restaurant") {
           console.log("Redirecting to restaurant dashboard");
-          // Don't clear flags until right before redirect
+          // Clear flags right before redirect
           clearAllSignupFlags();
+          // Use replace to prevent back button from returning to this page
           navigate("/restaurant-dashboard", { replace: true });
         } else if (detectedUserType === "customer") {
           console.log("Redirecting to customer app");
-          // Don't clear flags until right before redirect
+          // Clear flags right before redirect
           clearAllSignupFlags();
+          // Use replace to prevent back button from returning to this page
           navigate("/app", { replace: true });
         } else {
           // If no user type detected and we've tried everything, fall back to default
@@ -114,7 +129,10 @@ const SignUpSuccess = () => {
     
     const handleRedirect = async () => {
       // Don't redirect if already in progress or previously attempted
-      if (redirecting || redirectAttemptedRef.current) return;
+      if (redirecting || redirectAttemptedRef.current) {
+        console.log("Redirect already in progress or attempted, skipping");
+        return;
+      }
       
       setStatusMessage("Preparing to redirect...");
       console.log("Preparing to redirect based on user type:", userType);
@@ -148,12 +166,16 @@ const SignUpSuccess = () => {
       // 4. Last resort - try to get from database directly
       if (user && !redirectAttemptedRef.current) {
         setStatusMessage("Checking your profile...");
-        const dbUserType = await getUserTypeFromDatabase();
-        if (dbUserType) {
-          console.log("User type found in database:", dbUserType);
-          setStatusMessage(`User type verified: ${dbUserType}. Redirecting...`);
-          executeRedirect(dbUserType);
-          return;
+        try {
+          const dbUserType = await getUserTypeFromDatabase();
+          if (dbUserType) {
+            console.log("User type found in database:", dbUserType);
+            setStatusMessage(`User type verified: ${dbUserType}. Redirecting...`);
+            executeRedirect(dbUserType);
+            return;
+          }
+        } catch (error) {
+          console.error("Error getting user type from database:", error);
         }
       }
       
@@ -162,32 +184,29 @@ const SignUpSuccess = () => {
       if (user && !redirectAttemptedRef.current) {
         setStatusMessage("Almost there, finalizing your account...");
         
-        // Set up progressive timeouts - try with increasing delays
-        const delays = [1000, 2000, 3000];
-        
-        delays.forEach((delay, index) => {
-          progressiveTimeoutRef.current = window.setTimeout(async () => {
-            if (redirectAttemptedRef.current) return;
+        // Single delayed attempt instead of multiple progressive ones
+        redirectTimeoutRef.current = window.setTimeout(async () => {
+          if (redirectAttemptedRef.current) return;
+          
+          try {
+            // Final attempt to get user type
+            const finalUserType = userType || 
+                                getUserTypeFromMetadata() || 
+                                restoreRedirectState() || 
+                                (await getUserTypeFromDatabase());
             
-            // Try to get user type again with each attempt
-            const attemptUserType = getUserTypeFromMetadata() || 
-                                   (await getUserTypeFromDatabase()) || 
-                                   restoreRedirectState();
-            
-            if (attemptUserType) {
-              executeRedirect(attemptUserType);
-            } else if (index === delays.length - 1) {
-              // Last attempt, use whatever we have
-              const finalUserType = userType || getUserTypeFromMetadata() || null;
-              setStatusMessage("Taking longer than expected, redirecting now...");
-              executeRedirect(finalUserType);
-            }
-          }, delay);
-        });
+            setStatusMessage("Taking longer than expected, redirecting now...");
+            executeRedirect(finalUserType);
+          } catch (error) {
+            console.error("Error in delayed redirect:", error);
+            // Safety fallback
+            executeRedirect(null);
+          }
+        }, 2000);
       }
     };
     
-    // If auth is loaded and we have a user, try redirect
+    // If auth is loaded, try redirect
     if (!isLoading) {
       if (user) {
         console.log("Auth loaded and user available, attempting redirect");
@@ -213,14 +232,15 @@ const SignUpSuccess = () => {
         
         executeRedirect(finalUserType);
       }
-    }, 10000); // Increased from 8000 to 10000ms for more time
+    }, 10000);
     
     return () => {
+      // Clear all timeouts on unmount
       if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
       if (maxTimeoutRef.current) clearTimeout(maxTimeoutRef.current);
       if (progressiveTimeoutRef.current) clearTimeout(progressiveTimeoutRef.current);
     };
-  }, [navigate, userType, isLoading, redirecting, user, location]);
+  }, [navigate, userType, isLoading, user]); // Remove redirecting from dependencies
   
   return (
     <div className="mobile-container flex flex-col items-center justify-center pt-12 px-4 text-center">

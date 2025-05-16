@@ -18,6 +18,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const authCheckCompletedRef = useRef(false);
   const pathCheckedRef = useRef(false);
+  const authVerificationInProgressRef = useRef(false);
 
   // Parse the URL to better detect special routes
   const isCallbackUrl = location.pathname.includes("/auth/callback");
@@ -28,6 +29,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
                        location.search.includes("access_token") ||
                        location.search.includes("refresh_token");
   const isNewSignup = isNewSignupFlow();
+  const isSpecialRoute = isSignupRoute || isAuthCallback || isSignupSuccess || hasAuthTokens || isNewSignup;
 
   useEffect(() => {
     // Skip checks for specific paths on initial render
@@ -48,8 +50,8 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         hasSession: !!session
       });
       
-      // IMPORTANT: Skip ALL checks for these special routes
-      if (isSignupRoute || isAuthCallback || isSignupSuccess || hasAuthTokens || isNewSignup) {
+      // IMPORTANT: Skip ALL checks for special routes
+      if (isSpecialRoute) {
         console.log("ProtectedRoute - allowing access without checks for special route:", location.pathname);
         setIsCheckingAuth(false);
         return;
@@ -58,7 +60,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
     
     const verifyAuth = async () => {
       // Prevent multiple simultaneous auth checks
-      if (authCheckCompletedRef.current) {
+      if (authVerificationInProgressRef.current || authCheckCompletedRef.current) {
         return;
       }
       
@@ -76,15 +78,19 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         pathname: location.pathname
       });
       
+      // Set flag to prevent concurrent verification
+      authVerificationInProgressRef.current = true;
+      
       // Skip again for special routes (belt and suspenders)
-      if (isSignupRoute || isAuthCallback || isSignupSuccess || hasAuthTokens || isNewSignup) {
+      if (isSpecialRoute) {
         console.log("ProtectedRoute - allowing access to special route without checks:", location.pathname);
         setIsCheckingAuth(false);
+        authVerificationInProgressRef.current = false;
+        authCheckCompletedRef.current = true;
         return;
       }
       
       setIsCheckingAuth(true);
-      authCheckCompletedRef.current = true;
       
       try {
         // If no session, redirect to sign in
@@ -128,35 +134,41 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
         }
         
         // If we get here, auth is verified
+        authCheckCompletedRef.current = true;
         setIsCheckingAuth(false);
       } catch (error) {
         console.error('Auth verification error:', error);
         navigate("/signin");
       } finally {
         setIsCheckingAuth(false);
+        authVerificationInProgressRef.current = false;
       }
     };
 
-    // Use a small delay to ensure auth state is fully loaded
-    const timeoutId = setTimeout(() => {
-      verifyAuth();
-    }, 50);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      // Reset the auth check ref when component unmounts
-      authCheckCompletedRef.current = false;
-    };
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignup, isSignupSuccess, isAuthCallback, hasAuthTokens]);
+    // Only verify auth if not special route and auth check not completed
+    if (!isSpecialRoute && !authCheckCompletedRef.current) {
+      // Use a small delay to ensure auth state is fully loaded
+      const timeoutId = setTimeout(() => {
+        verifyAuth();
+      }, 50);
+      
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    } else if (isSpecialRoute) {
+      // For special routes, immediately set isCheckingAuth to false
+      setIsCheckingAuth(false);
+    }
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSpecialRoute]);
 
   // Helper function to redirect based on user type
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
     if (type === 'customer') {
-      navigate("/app");
+      navigate("/app", { replace: true });
     } else if (type === 'restaurant') {
-      navigate("/restaurant-dashboard");
+      navigate("/restaurant-dashboard", { replace: true });
     } else {
-      navigate("/signin");
+      navigate("/signin", { replace: true });
     }
   };
 
