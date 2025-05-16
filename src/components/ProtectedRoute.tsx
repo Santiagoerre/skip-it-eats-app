@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { Loader2 } from "lucide-react";
 import { ensureUserProfile } from "@/services/authService";
-import { clearAllSignupFlags } from "@/utils/authStateHelpers";
+import { clearAllSignupFlags, isNewSignupFlow } from "@/utils/authStateHelpers";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,20 +19,37 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
   const authCheckCompletedRef = useRef(false);
   const pathCheckedRef = useRef(false);
 
-  // Check if we're in a signup flow or OAuth callback
+  // Parse the URL to better detect special routes
+  const isCallbackUrl = location.pathname.includes("/auth/callback");
   const isSignupRoute = location.pathname.includes("/signup");
-  const isNewSignupFlow = location.search.includes('new=true') || sessionStorage.getItem('is_new_signup') === 'true';
   const isSignupSuccess = location.pathname.includes("/signup-success");
   const isAuthCallback = location.pathname.includes("/auth/callback");
-  const isOAuthCallback = location.hash.includes("access_token") || location.search.includes("access_token");
+  const hasAuthTokens = location.hash.includes("access_token") || 
+                       location.search.includes("access_token") ||
+                       location.search.includes("refresh_token");
+  const isNewSignup = isNewSignupFlow();
 
   useEffect(() => {
     // Skip checks for specific paths on initial render
     if (!pathCheckedRef.current) {
       pathCheckedRef.current = true;
       
-      // IMPORTANT: Skip ALL checks for signup routes, auth callbacks, or signup success
-      if (isSignupRoute || isAuthCallback || isSignupSuccess || isOAuthCallback) {
+      // Log all information about current route and state
+      console.log("ProtectedRoute initializing for:", location.pathname, {
+        isCallbackUrl,
+        isSignupRoute,
+        isSignupSuccess,
+        isAuthCallback,
+        hasAuthTokens,
+        isNewSignup,
+        userType,
+        requiredUserType,
+        hasUser: !!user,
+        hasSession: !!session
+      });
+      
+      // IMPORTANT: Skip ALL checks for these special routes
+      if (isSignupRoute || isAuthCallback || isSignupSuccess || hasAuthTokens || isNewSignup) {
         console.log("ProtectedRoute - allowing access without checks for special route:", location.pathname);
         setIsCheckingAuth(false);
         return;
@@ -47,6 +64,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       
       // Wait for the auth context to initialize
       if (isLoading) {
+        console.log("Auth is still loading, waiting...");
         return;
       }
 
@@ -59,7 +77,7 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       });
       
       // Skip again for special routes (belt and suspenders)
-      if (isSignupRoute || isAuthCallback || isSignupSuccess || isOAuthCallback) {
+      if (isSignupRoute || isAuthCallback || isSignupSuccess || hasAuthTokens || isNewSignup) {
         console.log("ProtectedRoute - allowing access to special route without checks:", location.pathname);
         setIsCheckingAuth(false);
         return;
@@ -108,6 +126,9 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
           redirectBasedOnUserType(userType);
           return;
         }
+        
+        // If we get here, auth is verified
+        setIsCheckingAuth(false);
       } catch (error) {
         console.error('Auth verification error:', error);
         navigate("/signin");
@@ -116,13 +137,17 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       }
     };
 
-    verifyAuth();
+    // Use a small delay to ensure auth state is fully loaded
+    const timeoutId = setTimeout(() => {
+      verifyAuth();
+    }, 50);
     
     return () => {
+      clearTimeout(timeoutId);
       // Reset the auth check ref when component unmounts
       authCheckCompletedRef.current = false;
     };
-  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignupFlow, isSignupSuccess, isAuthCallback, isOAuthCallback]);
+  }, [isLoading, session, userType, navigate, location.pathname, requiredUserType, user, isSignupRoute, isNewSignup, isSignupSuccess, isAuthCallback, hasAuthTokens]);
 
   // Helper function to redirect based on user type
   const redirectBasedOnUserType = (type: 'customer' | 'restaurant') => {
@@ -134,6 +159,12 @@ const ProtectedRoute = ({ children, requiredUserType }: ProtectedRouteProps) => 
       navigate("/signin");
     }
   };
+
+  // For auth callback and signup success pages, just render without checks
+  if (isAuthCallback || isSignupSuccess || hasAuthTokens) {
+    console.log("ProtectedRoute - rendering special page without auth checks");
+    return <>{children}</>;
+  }
 
   // Show loading indicator while checking authentication
   if (isLoading || isCheckingAuth) {

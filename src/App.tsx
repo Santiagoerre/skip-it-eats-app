@@ -45,7 +45,7 @@ const App = () => {
               <Toaster />
               <Sonner />
               <Routes>
-                {/* Auth callback route (highest priority) */}
+                {/* Auth callback routes (highest priority) - no auth protection */}
                 <Route path="/auth/callback" element={<SignUpSuccess />} />
                 <Route path="/signup-success" element={<SignUpSuccess />} />
                 
@@ -55,19 +55,19 @@ const App = () => {
                 <Route path="/signup" element={<UserTypeSelection />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 
-                {/* Signup routes with new=true query param - these don't need protection */}
+                {/* Signup routes - these don't need protection */}
                 <Route path="/signup/customer" element={<CustomerSignUp />} />
                 <Route path="/signup/restaurant" element={<RestaurantSignUp />} />
                 
                 {/* Restaurant routes */}
-                <Route path="/restaurant-dashboard" element={
+                <Route path="/restaurant-dashboard/*" element={
                   <ProtectedRoute requiredUserType="restaurant">
                     <RestaurantDashboard />
                   </ProtectedRoute>
                 } />
                 
                 {/* Customer routes */}
-                <Route path="/app" element={
+                <Route path="/app/*" element={
                   <ProtectedRoute requiredUserType="customer">
                     <MainLayout />
                   </ProtectedRoute>

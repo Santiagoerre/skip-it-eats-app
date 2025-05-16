@@ -25,11 +25,45 @@ const safelyRemoveSessionItem = (key: string) => {
   }
 };
 
+// Safely set localStorage items
+const safelySetLocalStorageItem = (key: string, value: string) => {
+  if (localStorage.getItem(key) !== value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.error(`Failed to set ${key} in localStorage:`, error);
+    }
+  }
+};
+
+// Safely get localStorage items
+const safelyGetLocalStorageItem = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.error(`Failed to get ${key} from localStorage:`, error);
+    return null;
+  }
+};
+
+// Safely remove localStorage items
+const safelyRemoveLocalStorageItem = (key: string) => {
+  if (localStorage.getItem(key) !== null) {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.error(`Failed to remove ${key} from localStorage:`, error);
+    }
+  }
+};
+
 /**
  * Marks the current user flow as a new signup 
  */
 export const markAsNewSignupFlow = (): void => {
   safelySetSessionItem('is_new_signup', 'true');
+  // Also store in localStorage for persistence across redirects
+  safelySetLocalStorageItem('skipit_new_signup', 'true');
 };
 
 /**
@@ -37,6 +71,7 @@ export const markAsNewSignupFlow = (): void => {
  */
 export const clearNewSignupFlag = (): void => {
   safelyRemoveSessionItem('is_new_signup');
+  safelyRemoveLocalStorageItem('skipit_new_signup');
 };
 
 /**
@@ -45,8 +80,63 @@ export const clearNewSignupFlag = (): void => {
 export const isNewSignupFlow = (): boolean => {
   return (
     window.location.search.includes('new=true') || 
-    sessionStorage.getItem('is_new_signup') === 'true'
+    sessionStorage.getItem('is_new_signup') === 'true' ||
+    localStorage.getItem('skipit_new_signup') === 'true'
   );
+};
+
+/**
+ * Preserves critical state information for redirection
+ */
+export const preserveRedirectState = (userId: string | undefined, userType: "customer" | "restaurant" | null): void => {
+  console.log("Preserving redirect state:", { userId, userType });
+  
+  if (userId) {
+    safelySetLocalStorageItem('skipit_user_id', userId);
+  }
+  
+  if (userType) {
+    safelySetLocalStorageItem('skipit_user_type', userType);
+  }
+  
+  // Mark that redirect is in progress
+  safelySetLocalStorageItem('skipit_redirect_in_progress', 'true');
+  safelySetLocalStorageItem('skipit_redirect_timestamp', Date.now().toString());
+};
+
+/**
+ * Restores redirect state information
+ */
+export const restoreRedirectState = (): "customer" | "restaurant" | null => {
+  const userType = safelyGetLocalStorageItem('skipit_user_type') as "customer" | "restaurant" | null;
+  const redirectTimestamp = safelyGetLocalStorageItem('skipit_redirect_timestamp');
+  
+  console.log("Restoring redirect state:", { userType, redirectTimestamp });
+  
+  // Only use stored redirect info if it's recent (within 5 minutes)
+  if (redirectTimestamp) {
+    const timestamp = parseInt(redirectTimestamp, 10);
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    if (now - timestamp > fiveMinutes) {
+      console.log("Stored redirect state is too old, ignoring");
+      clearRedirectState();
+      return null;
+    }
+  }
+  
+  return userType;
+};
+
+/**
+ * Clears redirect state information
+ */
+export const clearRedirectState = (): void => {
+  safelyRemoveLocalStorageItem('skipit_user_id');
+  safelyRemoveLocalStorageItem('skipit_user_type');
+  safelyRemoveLocalStorageItem('skipit_redirect_in_progress');
+  safelyRemoveLocalStorageItem('skipit_redirect_timestamp');
 };
 
 /**
@@ -88,13 +178,15 @@ export const recordNewUserId = (userId: string): void => {
     return;
   }
   safelySetSessionItem('new_user_id', userId);
+  // Also store in localStorage for persistence
+  safelySetLocalStorageItem('skipit_new_user_id', userId);
 };
 
 /**
  * Gets the ID of a newly created account
  */
 export const getNewUserId = (): string | null => {
-  return sessionStorage.getItem('new_user_id');
+  return sessionStorage.getItem('new_user_id') || localStorage.getItem('skipit_new_user_id');
 };
 
 /**
@@ -102,6 +194,7 @@ export const getNewUserId = (): string | null => {
  */
 export const clearNewUserId = (): void => {
   safelyRemoveSessionItem('new_user_id');
+  safelyRemoveLocalStorageItem('skipit_new_user_id');
 };
 
 /**
@@ -109,13 +202,14 @@ export const clearNewUserId = (): void => {
  */
 export const recordOAuthProvider = (provider: string): void => {
   safelySetSessionItem('oauth_provider', provider);
+  safelySetLocalStorageItem('skipit_oauth_provider', provider);
 };
 
 /**
  * Gets the OAuth provider used during signup
  */
 export const getOAuthProvider = (): string | null => {
-  return sessionStorage.getItem('oauth_provider');
+  return sessionStorage.getItem('oauth_provider') || localStorage.getItem('skipit_oauth_provider');
 };
 
 /**
@@ -123,6 +217,7 @@ export const getOAuthProvider = (): string | null => {
  */
 export const clearOAuthProvider = (): void => {
   safelyRemoveSessionItem('oauth_provider');
+  safelyRemoveLocalStorageItem('skipit_oauth_provider');
 };
 
 /**
@@ -136,6 +231,7 @@ export const clearAllSignupFlags = (): void => {
   clearTemporaryCredentials();
   clearNewUserId();
   clearOAuthProvider();
+  clearRedirectState();
   
   // Clear additional flags that might cause loops or redirection issues
   safelyRemoveSessionItem('restaurant_redirect_attempted');
@@ -164,6 +260,11 @@ export const clearAllSignupFlags = (): void => {
     localStorage.removeItem('skipit_auth_redirect_pending');
     localStorage.removeItem('skipit_signup_pending');
     localStorage.removeItem('skipit_oauth_flow');
+    localStorage.removeItem('skipit_new_signup');
+    localStorage.removeItem('skipit_new_user_id');
+    localStorage.removeItem('skipit_oauth_provider');
+    localStorage.removeItem('skipit_restaurant_created');
+    localStorage.removeItem('skipit_signup_complete');
   } catch (error) {
     console.error("Failed to clean localStorage items:", error);
   }
