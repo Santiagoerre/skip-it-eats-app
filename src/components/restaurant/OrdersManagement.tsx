@@ -1,12 +1,12 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Clock, Check, ListOrdered } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OrdersTab from "./orders/OrdersTab";
 import { OrderStatus } from "./orders/types";
 import { OrderProps } from "./orders/OrderCard";
-import { fetchRestaurantOrders, updateOrderStatus } from "@/services/orderService";
+import { fetchRestaurantOrders, updateOrderStatus, updateOrderPreparationTime } from "@/services/orderService";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { mockOrders } from "./orders/mockData";
@@ -37,7 +37,8 @@ const OrdersManagement = () => {
             status: order.status,
             time: new Date(order.created_at).toLocaleString(),
             specialInstructions: order.special_instructions,
-            scheduledFor: order.scheduled_for ? new Date(order.scheduled_for).toLocaleString() : undefined
+            scheduledFor: order.scheduled_for ? new Date(order.scheduled_for).toLocaleString() : undefined,
+            preparationTime: order.preparation_time
           }));
         } else {
           // If no real orders, use mock data for demo purposes
@@ -83,6 +84,27 @@ const OrdersManagement = () => {
     }
   });
   
+  // Use mutation for updating preparation time
+  const updatePreparationTimeMutation = useMutation({
+    mutationFn: ({ orderId, minutes }: { orderId: string, minutes: number }) => 
+      updateOrderPreparationTime(orderId, minutes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurantOrders'] });
+      toast({
+        title: "Preparation Time Set",
+        description: "Estimated preparation time has been updated",
+      });
+    },
+    onError: (error) => {
+      console.error("Error updating preparation time:", error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update the preparation time",
+        variant: "destructive",
+      });
+    }
+  });
+  
   // Filter orders by status
   const pendingOrders = orders.filter(order => order.status === "pending");
   const confirmedOrders = orders.filter(order => order.status === "confirmed");
@@ -93,6 +115,11 @@ const OrdersManagement = () => {
   // Handle order status updates
   const handleOrderStatusUpdate = (orderId: string, status: OrderStatus) => {
     updateOrderMutation.mutate({ orderId, status });
+  };
+  
+  // Handle preparation time updates
+  const handlePreparationTimeUpdate = (orderId: string, minutes: number) => {
+    updatePreparationTimeMutation.mutate({ orderId, minutes });
   };
   
   return (
@@ -131,6 +158,7 @@ const OrdersManagement = () => {
               orders={pendingOrders} 
               emptyMessage="No pending orders right now."
               onStatusUpdate={handleOrderStatusUpdate}
+              onPreparationTimeUpdate={handlePreparationTimeUpdate}
             />
           )}
         </TabsContent>

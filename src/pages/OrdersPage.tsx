@@ -8,6 +8,7 @@ import { Clock, CheckCircle } from "lucide-react";
 import { fetchCustomerOrders } from "@/services/orderService";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 // Interface for order data
 interface OrderItem {
@@ -27,6 +28,7 @@ interface Order {
   date: Date;
   formattedDate: string;
   estimatedReadyTime?: string;
+  preparationTime?: number;
   imageUrl: string;
   specialInstructions?: string;
   scheduledFor?: string;
@@ -34,18 +36,16 @@ interface Order {
 
 const OrdersPage = () => {
   const [activeTab, setActiveTab] = useState("active");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Fetch orders on component mount
-  useEffect(() => {
-    const loadOrders = async () => {
-      if (!user) return;
+  // Fetch orders using React Query
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['customerOrders', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
       
-      setIsLoading(true);
       try {
         const fetchedOrders = await fetchCustomerOrders(user.id);
         
@@ -65,13 +65,14 @@ const OrdersPage = () => {
             date,
             formattedDate: formatDate(date),
             estimatedReadyTime: order.status === 'pending' ? '15 minutes' : undefined,
+            preparationTime: order.preparation_time,
             imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png", // Placeholder
             specialInstructions: order.special_instructions,
             scheduledFor: order.scheduled_for ? formatDate(new Date(order.scheduled_for)) : undefined
           };
         });
         
-        setOrders(formattedOrders);
+        return formattedOrders;
       } catch (error) {
         console.error("Error loading orders:", error);
         toast({
@@ -79,13 +80,12 @@ const OrdersPage = () => {
           description: "Could not load your orders",
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
+        return [];
       }
-    };
-    
-    loadOrders();
-  }, [user, toast]);
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   // Format date helper
   const formatDate = (date: Date): string => {
@@ -187,7 +187,9 @@ const OrdersPage = () => {
                       <Clock className="h-4 w-4 mr-1 text-muted-foreground" />
                       {order.status === 'pending' 
                         ? `Ready in about ${order.estimatedReadyTime}`
-                        : 'Ready for pickup'}
+                        : order.preparationTime 
+                          ? `Ready in about ${order.preparationTime} minutes`
+                          : 'Ready for pickup'}
                     </p>
                     {order.scheduledFor && (
                       <p className="font-medium flex items-center text-blue-600 mt-1">

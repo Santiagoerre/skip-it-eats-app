@@ -4,8 +4,10 @@ import { Clock, Check, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { OrderStatus } from "./types";
+import { OrderStatus, PreparationTimeInfo } from "./types";
 import { OrderItem } from "@/services/orderService";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export interface OrderProps {
   id: string;
@@ -16,6 +18,7 @@ export interface OrderProps {
   time: string;
   specialInstructions?: string;
   scheduledFor?: string;
+  preparationTime?: number;
 }
 
 interface StatusButtonProps {
@@ -56,11 +59,15 @@ const OrderCard = ({
   time,
   specialInstructions,
   scheduledFor,
-  onStatusUpdate
+  preparationTime,
+  onStatusUpdate,
+  onPreparationTimeUpdate
 }: OrderProps & { 
   onStatusUpdate: (orderId: string, status: OrderStatus) => void;
+  onPreparationTimeUpdate?: (orderId: string, minutes: number) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [preparationMinutes, setPreparationMinutes] = useState(preparationTime || 15);
   
   const getStatusBadge = () => {
     switch (status) {
@@ -113,6 +120,9 @@ const OrderCard = ({
   };
   
   const handleConfirm = () => {
+    if (onPreparationTimeUpdate) {
+      onPreparationTimeUpdate(id, preparationMinutes);
+    }
     onStatusUpdate(id, 'confirmed');
   };
   
@@ -138,7 +148,16 @@ const OrderCard = ({
             </div>
             <p className="text-sm text-muted-foreground mt-1">Order placed: {time}</p>
             {scheduledFor && (
-              <p className="text-sm font-medium text-blue-600 mt-1">Scheduled for: {scheduledFor}</p>
+              <p className="text-sm font-medium text-blue-600 mt-1">
+                <Clock className="h-3 w-3 inline mr-1" />
+                Scheduled for: {scheduledFor}
+              </p>
+            )}
+            {preparationTime && status === 'confirmed' && (
+              <p className="text-sm font-medium text-green-600 mt-1">
+                <Clock className="h-3 w-3 inline mr-1" />
+                Ready in: {preparationTime} minutes
+              </p>
             )}
           </div>
           <div className="text-right">
@@ -207,6 +226,27 @@ const OrderCard = ({
             )}
           </div>
         </div>
+        
+        {/* Preparation Time Input (only show when pending) */}
+        {status === 'pending' && onPreparationTimeUpdate && (
+          <div className="mt-4 p-3 border rounded-md">
+            <Label htmlFor={`prep-time-${id}`} className="text-sm font-medium">
+              Estimated preparation time (minutes):
+            </Label>
+            <div className="flex items-center gap-2 mt-1">
+              <Input
+                id={`prep-time-${id}`}
+                type="number"
+                min="1"
+                max="120"
+                value={preparationMinutes}
+                onChange={(e) => setPreparationMinutes(parseInt(e.target.value) || 15)}
+                className="w-20"
+              />
+              <span className="text-sm text-muted-foreground">minutes</span>
+            </div>
+          </div>
+        )}
       </CardContent>
       
       {/* Order Actions */}

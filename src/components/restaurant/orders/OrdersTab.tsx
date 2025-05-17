@@ -8,9 +8,10 @@ interface OrdersTabProps {
   orders: OrderProps[];
   emptyMessage: string;
   onStatusUpdate: (orderId: string, status: OrderStatus) => void;
+  onPreparationTimeUpdate?: (orderId: string, minutes: number) => void;
 }
 
-const OrdersTab = ({ orders, emptyMessage, onStatusUpdate }: OrdersTabProps) => {
+const OrdersTab = ({ orders, emptyMessage, onStatusUpdate, onPreparationTimeUpdate }: OrdersTabProps) => {
   return (
     <>
       {orders.length === 0 ? (
@@ -20,7 +21,8 @@ const OrdersTab = ({ orders, emptyMessage, onStatusUpdate }: OrdersTabProps) => 
           <OrderCard 
             key={order.id} 
             {...order} 
-            onStatusUpdate={onStatusUpdate} 
+            onStatusUpdate={onStatusUpdate}
+            onPreparationTimeUpdate={onPreparationTimeUpdate}
           />
         ))
       )}

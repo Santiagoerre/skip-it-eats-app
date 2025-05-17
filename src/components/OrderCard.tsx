@@ -15,9 +15,20 @@ interface OrderCardProps {
   time: string;
   specialInstructions?: string;
   scheduledFor?: string;
+  preparationTime?: number;
 }
 
-const OrderCard = ({ id, restaurant, items, total, status, time, specialInstructions, scheduledFor }: OrderCardProps) => {
+const OrderCard = ({ 
+  id, 
+  restaurant, 
+  items, 
+  total, 
+  status, 
+  time, 
+  specialInstructions, 
+  scheduledFor,
+  preparationTime 
+}: OrderCardProps) => {
   const [expanded, setExpanded] = useState(false);
   
   const getStatusBadge = () => {
@@ -69,6 +80,12 @@ const OrderCard = ({ id, restaurant, items, total, status, time, specialInstruct
               <p className="text-sm font-medium text-blue-600 mt-1">
                 <Clock className="h-3 w-3 inline mr-1" />
                 Scheduled for: {scheduledFor}
+              </p>
+            )}
+            {preparationTime && status === 'confirmed' && (
+              <p className="text-sm font-medium text-green-600 mt-1">
+                <Clock className="h-3 w-3 inline mr-1" />
+                Ready in: {preparationTime} minutes
               </p>
             )}
           </div>

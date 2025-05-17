@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { OrderStatus } from "@/components/restaurant/orders/types";
 import { Json } from "@/integrations/supabase/types";
@@ -31,6 +30,7 @@ export interface Order {
   updated_at: string;
   special_instructions?: string | null;
   scheduled_for?: string | null;
+  preparation_time?: number | null;
 }
 
 // Submit a new order
@@ -197,6 +197,45 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
     } as Order;
   } catch (error) {
     console.error('Error updating order status:', error);
+    throw error;
+  }
+};
+
+// Update order preparation time
+export const updateOrderPreparationTime = async (orderId: string, minutes: number): Promise<Order> => {
+  try {
+    if (!orderId) {
+      throw new Error("No order ID provided for preparation time update");
+    }
+    
+    if (minutes <= 0 || minutes > 180) {
+      throw new Error("Preparation time must be between 1 and 180 minutes");
+    }
+    
+    console.log(`Updating preparation time for order ${orderId} to ${minutes} minutes`);
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ 
+        preparation_time: minutes,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating preparation time:', error);
+      throw error;
+    }
+    
+    return {
+      ...data,
+      items: data.items as unknown as OrderItem[],
+      items_with_options: data.items_with_options as unknown as OrderItem[] | null
+    } as Order;
+  } catch (error) {
+    console.error('Error updating preparation time:', error);
     throw error;
   }
 };

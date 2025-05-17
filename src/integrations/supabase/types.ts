@@ -132,7 +132,9 @@ export type Database = {
           id: string
           items: Json
           items_with_options: Json | null
+          preparation_time: number | null
           restaurant_id: string
+          scheduled_for: string | null
           special_instructions: string | null
           status: string
           total: number
@@ -145,7 +147,9 @@ export type Database = {
           id?: string
           items: Json
           items_with_options?: Json | null
+          preparation_time?: number | null
           restaurant_id: string
+          scheduled_for?: string | null
           special_instructions?: string | null
           status?: string
           total: number
@@ -158,7 +162,9 @@ export type Database = {
           id?: string
           items?: Json
           items_with_options?: Json | null
+          preparation_time?: number | null
           restaurant_id?: string
+          scheduled_for?: string | null
           special_instructions?: string | null
           status?: string
           total?: number
