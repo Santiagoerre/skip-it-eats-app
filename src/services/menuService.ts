@@ -22,10 +22,15 @@ export const getMenuItemsByRestaurant = async (restaurantId: string) => {
 
     // For each menu item, fetch its option groups and options
     if (data && data.length > 0) {
+      console.log(`Fetching option groups for ${data.length} menu items`);
+      
       const menuItemsWithOptions = await Promise.all(
         data.map(async (item) => {
           try {
+            console.log(`Fetching options for menu item: ${item.id} (${item.name})`);
             const optionGroups = await fetchOptionGroupsWithOptions(item.id);
+            console.log(`Found ${optionGroups.length} option groups for ${item.name}`);
+            
             return {
               ...item,
               menu_option_groups: optionGroups.length > 0 ? optionGroups : undefined
@@ -55,7 +60,7 @@ export const getMenuItemById = async (itemId: string) => {
 
     const { data, error } = await supabase
       .from('menu_items')
-      .select('*, menu_option_groups(*), menu_option_groups.menu_options(*)')
+      .select('*')
       .eq('id', itemId)
       .single();
 
@@ -64,7 +69,21 @@ export const getMenuItemById = async (itemId: string) => {
       throw error;
     }
 
-    return data;
+    if (data) {
+      // Fetch option groups with options for this menu item
+      try {
+        const optionGroups = await fetchOptionGroupsWithOptions(data.id);
+        return {
+          ...data,
+          menu_option_groups: optionGroups.length > 0 ? optionGroups : undefined
+        };
+      } catch (err) {
+        console.error(`Error fetching options for menu item ${data.id}:`, err);
+        return data;
+      }
+    }
+
+    return null;
   } catch (error) {
     console.error('Error fetching menu item:', error);
     return null;
