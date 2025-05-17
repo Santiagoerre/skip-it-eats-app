@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { fetchOptionGroupsWithOptions } from "./menuOptionService";
+import { fetchOptionGroupsWithOptions } from "./menuOptions";
 
 export const getMenuItemsByRestaurant = async (restaurantId: string) => {
   try {
