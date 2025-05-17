@@ -50,7 +50,7 @@ const CartSummary = ({
   
   const handleOrderSuccess = () => {
     onClearCart();
-    navigate('/orders');
+    navigate('/app/orders');
   };
   
   if (items.length === 0) {
