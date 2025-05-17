@@ -30,7 +30,7 @@ interface MenuItemOptionGroup {
   required: boolean;
   selection_type: string;
   description?: string;
-  menu_options: MenuItemOption[];
+  options?: MenuItemOption[];
 }
 
 interface MenuItemDetailsProps {
@@ -58,12 +58,17 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
   // Debug log to check if the item has option groups
   useEffect(() => {
     console.log("Menu item with options:", item);
-    console.log("Option groups:", item.menu_option_groups);
+    if (item.menu_option_groups) {
+      console.log("Option groups:", item.menu_option_groups);
+    } else {
+      console.log("No option groups found for this item");
+    }
   }, [item]);
   
   // Initialize selected options structure when item changes
   useEffect(() => {
-    if (item.menu_option_groups && item.menu_option_groups.length > 0) {
+    // Make sure menu_option_groups is defined before trying to map over it
+    if (item.menu_option_groups && Array.isArray(item.menu_option_groups) && item.menu_option_groups.length > 0) {
       const initialSelections = item.menu_option_groups.map(group => ({
         groupId: group.id,
         groupName: group.name,
@@ -86,7 +91,7 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
     
     if (selectedOptions.length > 0) {
       selectedOptions.forEach(group => {
-        if (group.selections.length > 0) {
+        if (group.selections && group.selections.length > 0) {
           group.selections.forEach(selection => {
             totalPrice += selection.priceAdjustment;
           });
@@ -136,7 +141,7 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
   
   // Check if an option is selected (for checkbox rendering)
   const isOptionSelected = (groupIndex: number, optionId: string) => {
-    if (!selectedOptions[groupIndex]) return false;
+    if (!selectedOptions[groupIndex] || !selectedOptions[groupIndex].selections) return false;
     
     return selectedOptions[groupIndex].selections.some(
       (selection: any) => selection.id === optionId
@@ -145,10 +150,10 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
   
   const handleAddToCart = () => {
     // Validate required options are selected
-    if (item.menu_option_groups) {
+    if (item.menu_option_groups && Array.isArray(item.menu_option_groups)) {
       const missingRequiredGroup = item.menu_option_groups.findIndex((group, index) => 
         group.required && 
-        (!selectedOptions[index] || selectedOptions[index].selections.length === 0)
+        (!selectedOptions[index] || !selectedOptions[index].selections || selectedOptions[index].selections.length === 0)
       );
       
       if (missingRequiredGroup !== -1) {
@@ -189,7 +194,7 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
           )}
           
           {/* Options Groups */}
-          {item.menu_option_groups && item.menu_option_groups.length > 0 ? (
+          {item.menu_option_groups && Array.isArray(item.menu_option_groups) && item.menu_option_groups.length > 0 ? (
             <div className="space-y-6 my-4">
               {item.menu_option_groups.map((group, groupIndex) => (
                 <div key={group.id} className="space-y-2">
@@ -206,13 +211,13 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
                     // Radio buttons for single selection
                     <RadioGroup
                       className="space-y-2 mt-2"
-                      value={selectedOptions[groupIndex]?.selections[0]?.id || ""}
+                      value={(selectedOptions[groupIndex]?.selections && selectedOptions[groupIndex]?.selections[0]?.id) || ""}
                       onValueChange={(value) => {
-                        const option = group.menu_options.find(o => o.id === value);
+                        const option = group.options?.find(o => o.id === value);
                         if (option) handleRadioOptionSelect(groupIndex, option);
                       }}
                     >
-                      {group.menu_options.map(option => (
+                      {group.options && group.options.map(option => (
                         <div key={option.id} className="flex items-center space-x-2 rounded-md border p-2">
                           <RadioGroupItem value={option.id} id={`radio-${option.id}`} />
                           <Label htmlFor={`radio-${option.id}`} className="flex-1 cursor-pointer">
@@ -234,7 +239,7 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
                   ) : (
                     // Checkboxes for multiple selection
                     <div className="space-y-2 mt-2">
-                      {group.menu_options.map(option => (
+                      {group.options && group.options.map(option => (
                         <div key={option.id} className="flex items-center space-x-2 rounded-md border p-2">
                           <Checkbox 
                             id={`checkbox-${option.id}`}

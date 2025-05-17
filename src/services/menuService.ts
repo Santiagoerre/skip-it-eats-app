@@ -33,11 +33,14 @@ export const getMenuItemsByRestaurant = async (restaurantId: string) => {
             
             return {
               ...item,
-              menu_option_groups: optionGroups.length > 0 ? optionGroups : undefined
+              menu_option_groups: optionGroups
             };
           } catch (err) {
             console.error(`Error fetching options for menu item ${item.id}:`, err);
-            return item;
+            return {
+              ...item,
+              menu_option_groups: []
+            };
           }
         })
       );
@@ -72,14 +75,20 @@ export const getMenuItemById = async (itemId: string) => {
     if (data) {
       // Fetch option groups with options for this menu item
       try {
+        console.log(`Fetching option groups for menu item: ${data.id}`);
         const optionGroups = await fetchOptionGroupsWithOptions(data.id);
+        console.log(`Found ${optionGroups.length} option groups for item ${data.name}`);
+        
         return {
           ...data,
-          menu_option_groups: optionGroups.length > 0 ? optionGroups : undefined
+          menu_option_groups: optionGroups
         };
       } catch (err) {
         console.error(`Error fetching options for menu item ${data.id}:`, err);
-        return data;
+        return {
+          ...data,
+          menu_option_groups: []
+        };
       }
     }
 

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for menu options
@@ -140,7 +139,7 @@ export const deleteOption = async (id: string): Promise<void> => {
 };
 
 // Fetch option groups for a menu item, including their options
-export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<MenuOptionGroup[]> => {
+export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<MenuItemOptionGroup[]> => {
   try {
     // First, fetch all option groups for the menu item
     const { data: groups, error: groupsError } = await supabase
@@ -149,24 +148,47 @@ export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<
       .eq('menu_item_id', menuItemId)
       .order('created_at', { ascending: true });
     
-    if (groupsError) throw groupsError;
-    if (!groups || groups.length === 0) return [];
+    if (groupsError) {
+      console.error('Error fetching option groups:', groupsError);
+      throw groupsError;
+    }
+    
+    if (!groups || groups.length === 0) {
+      console.log(`No option groups found for menu item ${menuItemId}`);
+      return [];
+    }
+    
+    console.log(`Found ${groups.length} option groups for menu item ${menuItemId}`);
     
     // For each group, fetch its options
     const groupsWithOptions = await Promise.all(groups.map(async (group) => {
-      const { data: options, error: optionsError } = await supabase
-        .from('menu_options')
-        .select('*')
-        .eq('option_group_id', group.id)
-        .order('created_at', { ascending: true });
-      
-      if (optionsError) throw optionsError;
-      
-      return {
-        ...group,
-        selection_type: group.selection_type as 'single' | 'multiple',
-        options: options || []
-      } as MenuOptionGroup;
+      try {
+        const { data: options, error: optionsError } = await supabase
+          .from('menu_options')
+          .select('*')
+          .eq('option_group_id', group.id)
+          .order('created_at', { ascending: true });
+        
+        if (optionsError) {
+          console.error(`Error fetching options for group ${group.id}:`, optionsError);
+          throw optionsError;
+        }
+        
+        console.log(`Group ${group.name} has ${options?.length || 0} options`);
+        
+        return {
+          ...group,
+          selection_type: group.selection_type as 'single' | 'multiple',
+          options: options || []
+        } as MenuItemOptionGroup;
+      } catch (err) {
+        console.error(`Error processing option group ${group.id}:`, err);
+        return {
+          ...group,
+          selection_type: group.selection_type as 'single' | 'multiple',
+          options: []
+        } as MenuItemOptionGroup;
+      }
     }));
     
     return groupsWithOptions;
