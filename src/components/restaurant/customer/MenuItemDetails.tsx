@@ -160,26 +160,6 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
     onAddToCart(item, quantity, selectedOptions);
   };
   
-  const increaseQuantity = () => setQuantity(prev => prev + 1);
-  const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
-  
-  // Calculate total price including selected options
-  const calculateTotalPrice = () => {
-    let totalPrice = item.price;
-    
-    if (selectedOptions.length > 0) {
-      selectedOptions.forEach(group => {
-        if (group.selections.length > 0) {
-          group.selections.forEach(selection => {
-            totalPrice += selection.priceAdjustment;
-          });
-        }
-      });
-    }
-    
-    return totalPrice;
-  };
-  
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md max-h-[90vh]">
