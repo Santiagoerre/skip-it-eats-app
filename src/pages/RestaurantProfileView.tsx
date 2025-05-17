@@ -12,7 +12,11 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
-import { fetchRestaurantById, fetchMenuItems } from "@/services/restaurantService";
+import { 
+  fetchRestaurantById, 
+  fetchMenuItems, 
+  MenuItem as RestaurantMenuItem 
+} from "@/services/restaurantService";
 import { submitOrder } from "@/services/orderService";
 import { useAuth } from "@/contexts/auth";
 import { Restaurant } from "@/services/restaurantService";
@@ -21,17 +25,8 @@ import { OrderItem } from "@/services/orderService";
 
 interface CartItem extends OrderItem {}
 
-interface MenuItem {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  category: string | null;
-  image_url: string | null;
-  restaurant_id?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+// Use the imported type instead of redefining it
+type MenuItem = RestaurantMenuItem;
 
 const RestaurantProfileView = () => {
   const navigate = useNavigate();
