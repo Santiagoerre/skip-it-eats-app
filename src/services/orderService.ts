@@ -30,6 +30,7 @@ export interface Order {
   created_at: string;
   updated_at: string;
   special_instructions?: string | null;
+  scheduled_for?: string | null;
 }
 
 // Submit a new order
@@ -39,7 +40,8 @@ export const submitOrder = async (
   customerName: string,
   items: OrderItem[], 
   total: number,
-  specialInstructions?: string
+  specialInstructions?: string,
+  scheduledFor?: string
 ): Promise<Order> => {
   try {
     // Validate inputs
@@ -63,7 +65,8 @@ export const submitOrder = async (
       items_with_options: items as unknown as Json,
       total,
       status: 'pending',
-      special_instructions: specialInstructions
+      special_instructions: specialInstructions,
+      scheduled_for: scheduledFor
     };
     
     const { data, error } = await supabase
@@ -232,5 +235,75 @@ export const getOrderById = async (orderId: string): Promise<Order | null> => {
   } catch (error) {
     console.error('Error fetching order by ID:', error);
     return null;
+  }
+};
+
+// Schedule an order for a future time
+export const scheduleOrder = async (
+  orderId: string, 
+  scheduledTime: string
+): Promise<Order> => {
+  try {
+    if (!orderId) {
+      throw new Error("No order ID provided for scheduling");
+    }
+    
+    console.log(`Scheduling order ${orderId} for ${scheduledTime}`);
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ scheduled_for: scheduledTime, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error scheduling order:', error);
+      throw error;
+    }
+    
+    return {
+      ...data,
+      items: data.items as unknown as OrderItem[],
+      items_with_options: data.items_with_options as unknown as OrderItem[] | null
+    } as Order;
+  } catch (error) {
+    console.error('Error scheduling order:', error);
+    throw error;
+  }
+};
+
+// Add or update special instructions for an order
+export const updateOrderInstructions = async (
+  orderId: string, 
+  instructions: string
+): Promise<Order> => {
+  try {
+    if (!orderId) {
+      throw new Error("No order ID provided for updating instructions");
+    }
+    
+    console.log(`Updating instructions for order ${orderId}`);
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ special_instructions: instructions, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating order instructions:', error);
+      throw error;
+    }
+    
+    return {
+      ...data,
+      items: data.items as unknown as OrderItem[],
+      items_with_options: data.items_with_options as unknown as OrderItem[] | null
+    } as Order;
+  } catch (error) {
+    console.error('Error updating order instructions:', error);
+    throw error;
   }
 };

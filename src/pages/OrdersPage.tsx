@@ -28,6 +28,8 @@ interface Order {
   formattedDate: string;
   estimatedReadyTime?: string;
   imageUrl: string;
+  specialInstructions?: string;
+  scheduledFor?: string;
 }
 
 const OrdersPage = () => {
@@ -63,7 +65,9 @@ const OrdersPage = () => {
             date,
             formattedDate: formatDate(date),
             estimatedReadyTime: order.status === 'pending' ? '15 minutes' : undefined,
-            imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png" // Placeholder
+            imageUrl: "/lovable-uploads/da394ecb-aa2b-40dd-b48b-3d91161b0dac.png", // Placeholder
+            specialInstructions: order.special_instructions,
+            scheduledFor: order.scheduled_for ? formatDate(new Date(order.scheduled_for)) : undefined
           };
         });
         
@@ -116,6 +120,21 @@ const OrdersPage = () => {
     navigate(`/restaurant/${restaurantId}`);
   };
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'Waiting for confirmation';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Rejected';
+      default:
+        return status;
+    }
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">My Orders</h1>
@@ -155,7 +174,7 @@ const OrdersPage = () => {
                         : "bg-blue-100 text-blue-800 hover:bg-blue-100"
                       }
                     >
-                      {order.status === 'pending' ? 'Preparing' : 'Ready for pickup'}
+                      {getStatusText(order.status)}
                     </Badge>
                     <span className="font-semibold">${order.totalPrice.toFixed(2)}</span>
                   </div>
@@ -170,7 +189,20 @@ const OrdersPage = () => {
                         ? `Ready in about ${order.estimatedReadyTime}`
                         : 'Ready for pickup'}
                     </p>
+                    {order.scheduledFor && (
+                      <p className="font-medium flex items-center text-blue-600 mt-1">
+                        <Clock className="h-4 w-4 mr-1 text-blue-600" />
+                        Scheduled for: {order.scheduledFor}
+                      </p>
+                    )}
                   </div>
+                  
+                  {order.specialInstructions && (
+                    <div className="bg-gray-50 rounded-lg p-3 mb-3 text-sm">
+                      <p className="font-medium">Note:</p>
+                      <p className="text-muted-foreground">{order.specialInstructions}</p>
+                    </div>
+                  )}
                   
                   <div className="bg-skipit-light rounded-lg p-3 text-center">
                     <p className="text-sm font-medium">Pickup at {order.formattedDate}</p>
@@ -220,6 +252,7 @@ const OrdersPage = () => {
                     
                     <p className="text-xs text-muted-foreground mb-2">
                       {order.formattedDate}
+                      {order.scheduledFor && ` • Scheduled for ${order.scheduledFor}`}
                     </p>
                     
                     <div className="flex justify-between items-center">
@@ -233,7 +266,7 @@ const OrdersPage = () => {
                           : "bg-red-100 text-red-800 hover:bg-red-100"
                         }
                       >
-                        {order.status === 'completed' ? 'Completed' : 'Cancelled'}
+                        {getStatusText(order.status)}
                       </Badge>
                     </div>
                     

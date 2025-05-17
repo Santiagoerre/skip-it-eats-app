@@ -15,6 +15,7 @@ export interface OrderProps {
   status: OrderStatus;
   time: string;
   specialInstructions?: string;
+  scheduledFor?: string;
 }
 
 interface StatusButtonProps {
@@ -41,7 +42,7 @@ const StatusButton = ({ currentStatus, targetStatus, label, onClick }: StatusBut
       size="sm"
       onClick={onClick}
     >
-      {label}
+      {targetStatus === 'cancelled' ? 'Reject' : label}
     </Button>
   );
 };
@@ -54,6 +55,7 @@ const OrderCard = ({
   status, 
   time,
   specialInstructions,
+  scheduledFor,
   onStatusUpdate
 }: OrderProps & { 
   onStatusUpdate: (orderId: string, status: OrderStatus) => void;
@@ -63,13 +65,13 @@ const OrderCard = ({
   const getStatusBadge = () => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Waiting for Confirmation</Badge>;
       case 'confirmed':
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Confirmed</Badge>;
       case 'completed':
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
       case 'cancelled':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -135,6 +137,9 @@ const OrderCard = ({
               {getStatusBadge()}
             </div>
             <p className="text-sm text-muted-foreground mt-1">Order placed: {time}</p>
+            {scheduledFor && (
+              <p className="text-sm font-medium text-blue-600 mt-1">Scheduled for: {scheduledFor}</p>
+            )}
           </div>
           <div className="text-right">
             <p className="font-semibold">${total.toFixed(2)}</p>
@@ -222,7 +227,7 @@ const OrderCard = ({
           <StatusButton
             currentStatus={status}
             targetStatus="cancelled"
-            label="Cancel"
+            label="Reject"
             onClick={handleCancel}
           />
         </CardFooter>

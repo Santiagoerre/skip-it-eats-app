@@ -36,7 +36,8 @@ const OrdersManagement = () => {
             total: order.total,
             status: order.status,
             time: new Date(order.created_at).toLocaleString(),
-            specialInstructions: order.special_instructions
+            specialInstructions: order.special_instructions,
+            scheduledFor: order.scheduled_for ? new Date(order.scheduled_for).toLocaleString() : undefined
           }));
         } else {
           // If no real orders, use mock data for demo purposes

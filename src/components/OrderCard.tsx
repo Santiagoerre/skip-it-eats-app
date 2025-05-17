@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,21 +13,23 @@ interface OrderCardProps {
   total: number;
   status: string;
   time: string;
+  specialInstructions?: string;
+  scheduledFor?: string;
 }
 
-const OrderCard = ({ id, restaurant, items, total, status, time }: OrderCardProps) => {
+const OrderCard = ({ id, restaurant, items, total, status, time, specialInstructions, scheduledFor }: OrderCardProps) => {
   const [expanded, setExpanded] = useState(false);
   
   const getStatusBadge = () => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Waiting for confirmation</Badge>;
       case 'confirmed':
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Confirmed</Badge>;
       case 'completed':
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
       case 'cancelled':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -63,6 +65,12 @@ const OrderCard = ({ id, restaurant, items, total, status, time }: OrderCardProp
               {getStatusBadge()}
             </div>
             <p className="text-sm text-muted-foreground mt-1">Order placed: {time}</p>
+            {scheduledFor && (
+              <p className="text-sm font-medium text-blue-600 mt-1">
+                <Clock className="h-3 w-3 inline mr-1" />
+                Scheduled for: {scheduledFor}
+              </p>
+            )}
           </div>
           <div className="text-right">
             <p className="font-semibold">${total.toFixed(2)}</p>
@@ -120,6 +128,14 @@ const OrderCard = ({ id, restaurant, items, total, status, time }: OrderCardProp
                 </div>
               );
             })}
+            
+            {/* Special Instructions */}
+            {specialInstructions && (
+              <div className="mt-3 bg-muted p-3 rounded-md">
+                <p className="font-medium text-sm">Special Instructions:</p>
+                <p className="text-sm mt-1">{specialInstructions}</p>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
