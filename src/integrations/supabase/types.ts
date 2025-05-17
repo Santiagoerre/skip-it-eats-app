@@ -45,6 +45,85 @@ export type Database = {
         }
         Relationships: []
       }
+      menu_option_groups: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          menu_item_id: string | null
+          name: string
+          required: boolean | null
+          selection_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          menu_item_id?: string | null
+          name: string
+          required?: boolean | null
+          selection_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          menu_item_id?: string | null
+          name?: string
+          required?: boolean | null
+          selection_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_option_groups_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_options: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          option_group_id: string | null
+          price_adjustment: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          option_group_id?: string | null
+          price_adjustment?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          option_group_id?: string | null
+          price_adjustment?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_options_option_group_id_fkey"
+            columns: ["option_group_id"]
+            isOneToOne: false
+            referencedRelation: "menu_option_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
@@ -52,6 +131,7 @@ export type Database = {
           customer_name: string
           id: string
           items: Json
+          items_with_options: Json | null
           restaurant_id: string
           special_instructions: string | null
           status: string
@@ -64,6 +144,7 @@ export type Database = {
           customer_name: string
           id?: string
           items: Json
+          items_with_options?: Json | null
           restaurant_id: string
           special_instructions?: string | null
           status?: string
@@ -76,6 +157,7 @@ export type Database = {
           customer_name?: string
           id?: string
           items?: Json
+          items_with_options?: Json | null
           restaurant_id?: string
           special_instructions?: string | null
           status?: string

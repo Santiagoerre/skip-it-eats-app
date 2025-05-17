@@ -1,74 +1,126 @@
 
-import { Clock, CheckCircle } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-interface Order {
-  id: number;
-  restaurantName: string;
-  items: string[];
-  totalPrice: string;
-  status: string;
-  pickupTime: string;
-  imageUrl: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { OrderItem } from "@/services/orderService";
 
 interface OrderCardProps {
-  order: Order;
-  isActive: boolean;
+  id: string;
+  restaurant: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  time: string;
 }
 
-const OrderCard = ({ order, isActive }: OrderCardProps) => {
+const OrderCard = ({ id, restaurant, items, total, status, time }: OrderCardProps) => {
+  const [expanded, setExpanded] = useState(false);
+  
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+      case 'confirmed':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Confirmed</Badge>;
+      case 'completed':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+  
+  // Format the item details for display
+  const formatItemText = (item: OrderItem) => {
+    let baseText = `${item.quantity} × ${item.name}`;
+    
+    // Calculate the item price including options
+    let itemPrice = item.price;
+    if (item.options) {
+      item.options.forEach(optionGroup => {
+        optionGroup.selections.forEach(selection => {
+          itemPrice += selection.priceAdjustment;
+        });
+      });
+    }
+    
+    return {
+      text: baseText,
+      price: itemPrice * item.quantity
+    };
+  };
+  
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="flex border-b p-3">
-          <div className="w-16 h-16 rounded-md overflow-hidden mr-3 flex-shrink-0">
-            <img
-              src={order.imageUrl}
-              alt={order.restaurantName}
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold">{order.restaurantName}</h3>
-            <p className="text-sm text-muted-foreground">
-              {order.items.join(", ")}
-            </p>
-            <div className="mt-1 flex justify-between items-center">
-              <span className="font-medium">{order.totalPrice}</span>
-              {isActive ? (
-                <span className="text-skipit-primary text-sm font-medium flex items-center">
-                  <Clock className="h-3 w-3 mr-1" />
-                  {order.status}
-                </span>
-              ) : (
-                <span className="text-green-600 text-sm font-medium flex items-center">
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  {order.status}
-                </span>
-              )}
+    <Card className="mb-4">
+      <CardContent className="p-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">{restaurant}</h3>
+              {getStatusBadge()}
             </div>
+            <p className="text-sm text-muted-foreground mt-1">Order placed: {time}</p>
+          </div>
+          <div className="text-right">
+            <p className="font-semibold">${total.toFixed(2)}</p>
+            <p className="text-sm text-muted-foreground">Order #{id.substring(0, 8)}</p>
           </div>
         </div>
         
-        <div className="p-3 flex justify-between items-center bg-skipit-light">
-          <div className="text-sm">
-            <span className="text-muted-foreground">Pickup: </span>
-            <span className="font-medium">{order.pickupTime}</span>
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-medium">Order Items</h4>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 p-0 px-2"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
           </div>
           
-          {isActive && (
-            <Button variant="outline" size="sm">
-              View Details
-            </Button>
-          )}
-          
-          {!isActive && (
-            <Button variant="outline" size="sm">
-              Reorder
-            </Button>
-          )}
+          <div className={`space-y-2 ${expanded ? 'block' : 'hidden'}`}>
+            {items.map((item, index) => {
+              const { text, price } = formatItemText(item);
+              
+              return (
+                <div key={index} className="border-b pb-2 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p>{text}</p>
+                      
+                      {/* Display selected options if any */}
+                      {item.options && item.options.length > 0 && (
+                        <div className="ml-4 mt-1 text-sm text-muted-foreground">
+                          {item.options.map((optionGroup, groupIndex) => (
+                            <div key={groupIndex}>
+                              <span className="font-medium">{optionGroup.groupName}: </span>
+                              {optionGroup.selections.map((selection, selectionIndex) => (
+                                <span key={selectionIndex}>
+                                  {selection.name}
+                                  {selection.priceAdjustment > 0 && ` (+$${selection.priceAdjustment.toFixed(2)})`}
+                                  {selectionIndex < optionGroup.selections.length - 1 ? ', ' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="font-medium">${price.toFixed(2)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

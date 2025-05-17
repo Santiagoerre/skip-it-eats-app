@@ -10,13 +10,10 @@ import { fetchRestaurantById, fetchMenuItems } from "@/services/restaurantServic
 import { submitOrder } from "@/services/orderService";
 import { useAuth } from "@/contexts/auth";
 import { Restaurant } from "@/services/restaurantService";
+import MenuItemDetails from "@/components/restaurant/customer/MenuItemDetails";
+import { OrderItem } from "@/services/orderService";
 
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
+interface CartItem extends OrderItem {}
 
 interface MenuItem {
   id: string;
@@ -40,9 +37,25 @@ const RestaurantProfileView = () => {
   const [menuCategories, setMenuCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [isMenuItemDetailsOpen, setIsMenuItemDetailsOpen] = useState(false);
+  const [isOrderSummaryOpen, setIsOrderSummaryOpen] = useState(false);
   
   // Calculate cart total
-  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const cartTotal = cart.reduce((total, item) => {
+    let itemTotal = item.price * item.quantity;
+    
+    // Add price from options
+    if (item.options) {
+      item.options.forEach(optionGroup => {
+        optionGroup.selections.forEach(selection => {
+          itemTotal += selection.priceAdjustment * item.quantity;
+        });
+      });
+    }
+    
+    return total + itemTotal;
+  }, 0);
 
   // Fetch restaurant data and menu
   useEffect(() => {
@@ -84,39 +97,29 @@ const RestaurantProfileView = () => {
     loadRestaurantData();
   }, [id, toast]);
   
-  const addToCart = (item: { id: string; name: string; price: number }) => {
-    setCart(prevCart => {
-      const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
-      
-      if (existingItem) {
-        // Item exists, increment quantity
-        return prevCart.map(cartItem => 
-          cartItem.id === item.id 
-            ? { ...cartItem, quantity: cartItem.quantity + 1 } 
-            : cartItem
-        );
-      } else {
-        // Item doesn't exist, add it
-        return [...prevCart, { ...item, quantity: 1 }];
-      }
-    });
-    
-    toast({
-      description: `${item.name} added to cart`,
-      duration: 2000,
-    });
+  const handleMenuItemClick = (item: MenuItem) => {
+    setSelectedMenuItem(item);
+    setIsMenuItemDetailsOpen(true);
   };
   
-  const updateQuantity = (itemId: string, change: number) => {
+  const addToCart = (orderItem: OrderItem) => {
+    setCart(prevCart => [...prevCart, orderItem]);
+  };
+  
+  const updateQuantity = (index: number, change: number) => {
     setCart(prevCart => {
-      return prevCart.map(item => {
-        if (item.id === itemId) {
+      return prevCart.map((item, i) => {
+        if (i === index) {
           const newQuantity = Math.max(0, item.quantity + change);
           return { ...item, quantity: newQuantity };
         }
         return item;
       }).filter(item => item.quantity > 0); // Remove items with zero quantity
     });
+  };
+  
+  const removeCartItem = (index: number) => {
+    setCart(prevCart => prevCart.filter((_, i) => i !== index));
   };
   
   const handlePlaceOrder = async () => {
@@ -152,11 +155,7 @@ const RestaurantProfileView = () => {
     
     try {
       // Format cart items for database
-      const items = cart.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price
-      }));
+      const items = cart;
       
       // Submit order to backend
       await submitOrder(
@@ -184,7 +183,12 @@ const RestaurantProfileView = () => {
       });
     } finally {
       setIsPlacingOrder(false);
+      setIsOrderSummaryOpen(false);
     }
+  };
+  
+  const showOrderSummary = () => {
+    setIsOrderSummaryOpen(true);
   };
 
   return (
@@ -257,64 +261,35 @@ const RestaurantProfileView = () => {
                 <div className="space-y-4">
                   {menuItems
                     .filter(item => (item.category || 'Uncategorized') === selectedCategory)
-                    .map(item => {
-                      const cartItem = cart.find(cartItem => cartItem.id === item.id);
-                      
-                      return (
-                        <Card key={item.id} className="overflow-hidden">
-                          <CardContent className="p-0">
-                            <div className="flex">
-                              <div className="w-1/3 h-24 bg-muted">
-                                <img
-                                  src={item.image_url || '/placeholder.svg'}
-                                  alt={item.name}
-                                  className="h-full w-full object-cover"
-                                />
+                    .map(item => (
+                      <Card 
+                        key={item.id} 
+                        className="overflow-hidden cursor-pointer" 
+                        onClick={() => handleMenuItemClick(item)}
+                      >
+                        <CardContent className="p-0">
+                          <div className="flex">
+                            <div className="w-1/3 h-24 bg-muted">
+                              <img
+                                src={item.image_url || '/placeholder.svg'}
+                                alt={item.name}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="w-2/3 p-3 flex flex-col justify-between">
+                              <div>
+                                <h3 className="font-semibold">{item.name}</h3>
+                                <p className="text-muted-foreground text-xs line-clamp-2">{item.description}</p>
                               </div>
-                              <div className="w-2/3 p-3 flex flex-col justify-between">
-                                <div>
-                                  <h3 className="font-semibold">{item.name}</h3>
-                                  <p className="text-muted-foreground text-xs line-clamp-2">{item.description}</p>
-                                </div>
-                                
-                                <div className="flex justify-between items-center mt-2">
-                                  <span className="font-medium">${item.price.toFixed(2)}</span>
-                                  
-                                  {cartItem ? (
-                                    <div className="flex items-center space-x-2">
-                                      <Button 
-                                        size="icon" 
-                                        variant="outline" 
-                                        className="h-7 w-7"
-                                        onClick={() => updateQuantity(item.id, -1)}
-                                      >
-                                        <Minus className="h-3 w-3" />
-                                      </Button>
-                                      <span className="w-4 text-center">{cartItem.quantity}</span>
-                                      <Button 
-                                        size="icon" 
-                                        variant="outline" 
-                                        className="h-7 w-7"
-                                        onClick={() => updateQuantity(item.id, 1)}
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button 
-                                      size="sm" 
-                                      onClick={() => addToCart(item)}
-                                    >
-                                      Add
-                                    </Button>
-                                  )}
-                                </div>
+                              
+                              <div className="flex justify-between items-center mt-2">
+                                <span className="font-medium">${item.price.toFixed(2)}</span>
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                 </div>
               </div>
             )}
@@ -322,15 +297,106 @@ const RestaurantProfileView = () => {
         )}
       </div>
       
+      {/* Menu Item Details Dialog */}
+      <MenuItemDetails
+        item={selectedMenuItem}
+        open={isMenuItemDetailsOpen}
+        onOpenChange={setIsMenuItemDetailsOpen}
+        onAddToCart={addToCart}
+      />
+      
+      {/* Order Summary Dialog */}
+      <Dialog open={isOrderSummaryOpen} onOpenChange={setIsOrderSummaryOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Order Summary</DialogTitle>
+          </DialogHeader>
+          
+          <div className="mt-4 space-y-4">
+            {cart.map((item, index) => {
+              // Calculate item total price including options
+              let itemTotalPrice = item.price;
+              if (item.options) {
+                item.options.forEach(optionGroup => {
+                  optionGroup.selections.forEach(selection => {
+                    itemTotalPrice += selection.priceAdjustment;
+                  });
+                });
+              }
+              
+              return (
+                <div key={index} className="border-b pb-3">
+                  <div className="flex justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {item.quantity} × {item.name}
+                      </p>
+                      
+                      {item.options && item.options.length > 0 && (
+                        <div className="ml-4 mt-1 text-sm text-muted-foreground">
+                          {item.options.map((optionGroup, groupIndex) => (
+                            <div key={groupIndex}>
+                              <span className="font-medium">{optionGroup.groupName}: </span>
+                              {optionGroup.selections.map((selection, selectionIndex) => (
+                                <span key={selectionIndex}>
+                                  {selection.name}
+                                  {selection.priceAdjustment > 0 && ` (+$${selection.priceAdjustment.toFixed(2)})`}
+                                  {selectionIndex < optionGroup.selections.length - 1 ? ', ' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-col items-end">
+                      <span className="font-medium">${(itemTotalPrice * item.quantity).toFixed(2)}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 px-2 text-red-500 hover:text-red-600" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeCartItem(index);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            
+            <div className="pt-2">
+              <div className="flex justify-between">
+                <span className="font-semibold">Total</span>
+                <span className="font-semibold">${cartTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-6">
+            <Button 
+              className="w-full py-6" 
+              onClick={handlePlaceOrder}
+              disabled={isPlacingOrder}
+            >
+              {isPlacingOrder ? 'Placing Order...' : `Place Order • $${cartTotal.toFixed(2)}`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* Cart Button (Fixed at Bottom) */}
       {cart.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-md rounded-t-xl animate-slide-up">
           <Button 
             className="w-full py-6" 
-            onClick={handlePlaceOrder}
-            disabled={isPlacingOrder}
+            onClick={showOrderSummary}
           >
-            {isPlacingOrder ? 'Placing Order...' : `Place Order • $${cartTotal.toFixed(2)} • ${cart.reduce((total, item) => total + item.quantity, 0)} items`}
+            Review Order • ${cartTotal.toFixed(2)} • {cart.reduce((total, item) => total + item.quantity, 0)} items
           </Button>
         </div>
       )}

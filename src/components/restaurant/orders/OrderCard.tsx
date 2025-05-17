@@ -1,18 +1,11 @@
 
-import { Check, X, Clock, Calendar, Utensils, DollarSign } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { OrderStatus } from "./types";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
-
-interface OrderItem {
-  name: string;
-  quantity: number;
-  price: number;
-}
+import { Clock, Check, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { OrderStatus } from "./types";
+import { OrderItem } from "@/services/orderService";
 
 export interface OrderProps {
   id: string;
@@ -24,230 +17,217 @@ export interface OrderProps {
   specialInstructions?: string;
 }
 
-interface OrderCardProps {
-  order: OrderProps;
-  onStatusUpdate: (orderId: string, status: OrderStatus) => void;
+interface StatusButtonProps {
+  currentStatus: OrderStatus;
+  targetStatus: OrderStatus;
+  label: string;
+  onClick: () => void;
 }
 
-const OrderCard = ({ order, onStatusUpdate }: OrderCardProps) => {
-  const [showDetails, setShowDetails] = useState(false);
-  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+const StatusButton = ({ currentStatus, targetStatus, label, onClick }: StatusButtonProps) => {
+  // Determine which status changes are valid
+  const isValid = 
+    (currentStatus === 'pending' && targetStatus === 'confirmed') ||
+    (currentStatus === 'pending' && targetStatus === 'cancelled') ||
+    (currentStatus === 'confirmed' && targetStatus === 'completed') ||
+    (currentStatus === 'confirmed' && targetStatus === 'cancelled');
   
-  const getStatusVariant = (status: OrderStatus) => {
+  // Render nothing if status change is invalid
+  if (!isValid) return null;
+  
+  return (
+    <Button
+      variant={targetStatus === 'cancelled' ? "destructive" : "default"}
+      size="sm"
+      onClick={onClick}
+    >
+      {label}
+    </Button>
+  );
+};
+
+const OrderCard = ({ 
+  id, 
+  customer, 
+  items, 
+  total, 
+  status, 
+  time,
+  specialInstructions,
+  onStatusUpdate
+}: OrderProps & { 
+  onStatusUpdate: (orderId: string, status: OrderStatus) => void;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  
+  const getStatusBadge = () => {
     switch (status) {
-      case "pending":
-        return "outline";
-      case "confirmed":
-        return "secondary";
-      case "completed":
-        return "default";
-      case "cancelled":
-        return "destructive";
+      case 'pending':
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+      case 'confirmed':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Confirmed</Badge>;
+      case 'completed':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
       default:
-        return "outline";
+        return <Badge variant="outline">Unknown</Badge>;
     }
   };
   
-  const getStatusIcon = (status: OrderStatus) => {
+  const getStatusIcon = () => {
     switch (status) {
-      case "pending":
-        return <Clock className="h-4 w-4 mr-1" />;
-      case "confirmed":
-        return <Check className="h-4 w-4 mr-1" />;
-      case "completed":
-        return <Check className="h-4 w-4 mr-1" />;
-      case "cancelled":
-        return <X className="h-4 w-4 mr-1" />;
+      case 'pending':
+        return <Clock className="h-5 w-5 text-yellow-500" />;
+      case 'confirmed':
+        return <Clock className="h-5 w-5 text-blue-500" />;
+      case 'completed':
+        return <Check className="h-5 w-5 text-green-500" />;
+      case 'cancelled':
+        return <X className="h-5 w-5 text-red-500" />;
       default:
         return null;
     }
   };
   
+  // Format the item details for display
+  const formatItemText = (item: OrderItem) => {
+    let baseText = `${item.quantity} × ${item.name}`;
+    
+    // Calculate the item price including options
+    let itemPrice = item.price;
+    if (item.options) {
+      item.options.forEach(optionGroup => {
+        optionGroup.selections.forEach(selection => {
+          itemPrice += selection.priceAdjustment;
+        });
+      });
+    }
+    
+    return {
+      text: baseText,
+      price: itemPrice * item.quantity
+    };
+  };
+  
+  const handleConfirm = () => {
+    onStatusUpdate(id, 'confirmed');
+  };
+  
+  const handleComplete = () => {
+    onStatusUpdate(id, 'completed');
+  };
+  
+  const handleCancel = () => {
+    onStatusUpdate(id, 'cancelled');
+  };
+  
   return (
-    <>
-      <Card className="mb-4 hover:shadow-md transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="font-semibold">{order.customer}</h3>
-              <p className="text-sm text-muted-foreground">{order.time}</p>
+    <Card className={`mb-4 ${
+      status === 'cancelled' ? 'opacity-75' : ''
+    }`}>
+      <CardContent className="p-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-2">
+              {getStatusIcon()}
+              <h3 className="font-medium">{customer}</h3>
+              {getStatusBadge()}
             </div>
-            <Badge
-              variant={getStatusVariant(order.status)}
-              className="flex items-center"
+            <p className="text-sm text-muted-foreground mt-1">Order placed: {time}</p>
+          </div>
+          <div className="text-right">
+            <p className="font-semibold">${total.toFixed(2)}</p>
+            <p className="text-sm text-muted-foreground">Order #{id.substring(0, 8)}</p>
+          </div>
+        </div>
+        
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-medium">Order Items</h4>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 p-0 px-2"
+              onClick={() => setExpanded(!expanded)}
             >
-              {getStatusIcon(order.status)}
-              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-            </Badge>
-          </div>
-          
-          <Separator className="my-4" />
-          
-          <div className="space-y-2">
-            {order.items.slice(0, 2).map((item, index) => (
-              <div key={index} className="flex justify-between text-sm">
-                <span>{item.quantity}x {item.name}</span>
-                <span>${item.price.toFixed(2)}</span>
-              </div>
-            ))}
-            {order.items.length > 2 && (
-              <Button 
-                variant="ghost" 
-                className="text-xs p-0 h-auto" 
-                onClick={() => setShowDetails(true)}
-              >
-                +{order.items.length - 2} more items
-              </Button>
-            )}
-          </div>
-          
-          {order.specialInstructions && (
-            <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-              <p className="font-semibold">Special Instructions:</p>
-              <p className="line-clamp-2">{order.specialInstructions}</p>
-              {order.specialInstructions.length > 100 && (
-                <Button 
-                  variant="ghost" 
-                  className="text-xs p-0 h-auto mt-1" 
-                  onClick={() => setShowDetails(true)}
-                >
-                  View all
-                </Button>
+              {expanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
               )}
-            </div>
-          )}
-          
-          <div className="mt-4 flex justify-between font-semibold">
-            <span>Total</span>
-            <span>${order.total.toFixed(2)}</span>
+            </Button>
           </div>
-        </CardContent>
-        
-        {order.status === "pending" && (
-          <CardFooter className="flex justify-between gap-2 pt-0">
-            <Button 
-              variant="outline" 
-              className="flex-1 border-red-200 hover:bg-red-50 hover:text-red-500"
-              onClick={() => setConfirmCancelOpen(true)}
-            >
-              <X className="h-4 w-4 mr-2" /> Reject
-            </Button>
-            <Button 
-              variant="default" 
-              className="flex-1"
-              onClick={() => onStatusUpdate(order.id, "confirmed")}
-            >
-              <Check className="h-4 w-4 mr-2" /> Accept
-            </Button>
-          </CardFooter>
-        )}
-        
-        {order.status === "confirmed" && (
-          <CardFooter className="pt-0">
-            <Button 
-              variant="default" 
-              className="w-full"
-              onClick={() => onStatusUpdate(order.id, "completed")}
-            >
-              <Check className="h-4 w-4 mr-2" /> Mark as Completed
-            </Button>
-          </CardFooter>
-        )}
-      </Card>
-      
-      {/* Order Details Dialog */}
-      <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Order Details</DialogTitle>
-            <DialogDescription>
-              Order from {order.customer} on {order.time}
-            </DialogDescription>
-          </DialogHeader>
           
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <Badge variant={getStatusVariant(order.status)} className="mr-2">
-                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-              </Badge>
-              <span className="text-sm text-muted-foreground">Order ID: {order.id.slice(0, 8)}</span>
-            </div>
-            
-            <div className="bg-muted p-4 rounded-md space-y-3">
-              <div className="font-medium">Items</div>
-              {order.items.map((item, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span>{item.quantity}x {item.name}</span>
-                  <span>${item.price.toFixed(2)}</span>
+          <div className={`space-y-2 ${expanded ? 'block' : 'hidden'}`}>
+            {items.map((item, index) => {
+              const { text, price } = formatItemText(item);
+              
+              return (
+                <div key={index} className="border-b pb-2 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p>{text}</p>
+                      
+                      {/* Display selected options if any */}
+                      {item.options && item.options.length > 0 && (
+                        <div className="ml-4 mt-1 text-sm text-muted-foreground">
+                          {item.options.map((optionGroup, groupIndex) => (
+                            <div key={groupIndex}>
+                              <span className="font-medium">{optionGroup.groupName}: </span>
+                              {optionGroup.selections.map((selection, selectionIndex) => (
+                                <span key={selectionIndex}>
+                                  {selection.name}
+                                  {selection.priceAdjustment > 0 && ` (+$${selection.priceAdjustment.toFixed(2)})`}
+                                  {selectionIndex < optionGroup.selections.length - 1 ? ', ' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="font-medium">${price.toFixed(2)}</p>
+                  </div>
                 </div>
-              ))}
-              <Separator />
-              <div className="flex justify-between font-medium">
-                <span>Total</span>
-                <span>${order.total.toFixed(2)}</span>
-              </div>
-            </div>
+              );
+            })}
             
-            {order.specialInstructions && (
-              <div className="space-y-2">
-                <div className="font-medium">Special Instructions</div>
-                <div className="text-sm bg-muted p-4 rounded-md">
-                  {order.specialInstructions}
-                </div>
+            {/* Special Instructions */}
+            {specialInstructions && (
+              <div className="mt-3 bg-muted p-3 rounded-md">
+                <p className="font-medium text-sm">Special Instructions:</p>
+                <p className="text-sm mt-1">{specialInstructions}</p>
               </div>
             )}
-            
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center text-sm">
-                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Ordered on {order.time}</span>
-              </div>
-              <div className="flex items-center text-sm">
-                <Utensils className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Customer: {order.customer}</span>
-              </div>
-              <div className="flex items-center text-sm">
-                <DollarSign className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Payment: Paid Online</span>
-              </div>
-            </div>
           </div>
-          
-          <div className="flex justify-end">
-            <DialogClose asChild>
-              <Button variant="outline">Close</Button>
-            </DialogClose>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </CardContent>
       
-      {/* Confirmation Dialog for Cancelling Order */}
-      <Dialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Order</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to reject this order? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex justify-end space-x-2 mt-4">
-            <Button variant="outline" onClick={() => setConfirmCancelOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => {
-                onStatusUpdate(order.id, "cancelled");
-                setConfirmCancelOpen(false);
-              }}
-            >
-              Reject Order
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+      {/* Order Actions */}
+      {status !== 'completed' && status !== 'cancelled' && (
+        <CardFooter className="flex justify-end gap-2 p-4 pt-0">
+          <StatusButton
+            currentStatus={status}
+            targetStatus="confirmed"
+            label="Confirm"
+            onClick={handleConfirm}
+          />
+          <StatusButton
+            currentStatus={status}
+            targetStatus="completed"
+            label="Complete"
+            onClick={handleComplete}
+          />
+          <StatusButton
+            currentStatus={status}
+            targetStatus="cancelled"
+            label="Cancel"
+            onClick={handleCancel}
+          />
+        </CardFooter>
+      )}
+    </Card>
   );
 };
 

@@ -8,6 +8,15 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  options?: OrderItemOption[];
+}
+
+export interface OrderItemOption {
+  groupName: string;
+  selections: {
+    name: string;
+    priceAdjustment: number;
+  }[];
 }
 
 export interface Order {
@@ -16,6 +25,7 @@ export interface Order {
   restaurant_id: string;
   customer_name: string;
   items: OrderItem[];
+  items_with_options?: OrderItem[];
   total: number;
   status: OrderStatus;
   created_at: string;
@@ -45,17 +55,21 @@ export const submitOrder = async (
       }
     });
     
+    // Prepare the order data
+    const orderData = {
+      customer_id: customerId,
+      restaurant_id: restaurantId,
+      customer_name: customerName,
+      items: items.map(({ options, ...rest }) => rest) as unknown as Json,
+      items_with_options: items as unknown as Json,
+      total,
+      status: 'pending',
+      special_instructions: specialInstructions
+    };
+    
     const { data, error } = await supabase
       .from('orders')
-      .insert({
-        customer_id: customerId,
-        restaurant_id: restaurantId,
-        customer_name: customerName,
-        items: items as unknown as Json,
-        total,
-        status: 'pending',
-        special_instructions: specialInstructions
-      })
+      .insert(orderData)
       .select()
       .single();
     
@@ -69,7 +83,8 @@ export const submitOrder = async (
     
     return {
       ...data,
-      items: data.items as unknown as OrderItem[]
+      items: data.items as unknown as OrderItem[],
+      items_with_options: data.items_with_options as unknown as OrderItem[]
     } as Order;
   } catch (error) {
     console.error('Error submitting order:', error);

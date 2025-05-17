@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MenuItem, createMenuItem, updateMenuItem } from "@/services/restaurantService";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MenuItemOptionsManager from "./MenuItemOptionsManager";
 
 interface MenuItemDialogProps {
   open: boolean;
@@ -62,6 +64,8 @@ const MenuItemDialog = ({ open, onOpenChange, item, onSave }: MenuItemDialogProp
   const [customCategory, setCustomCategory] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState("details");
+  const [savedItemId, setSavedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     if (item) {
@@ -69,6 +73,7 @@ const MenuItemDialog = ({ open, onOpenChange, item, onSave }: MenuItemDialogProp
       setDescription(item.description || "");
       setPrice(item.price.toString());
       setCategory(item.category || "Other");
+      setSavedItemId(item.id);
     } else {
       // Clear form for new item
       setName("");
@@ -76,8 +81,10 @@ const MenuItemDialog = ({ open, onOpenChange, item, onSave }: MenuItemDialogProp
       setPrice("");
       setCategory("Main Courses");
       setCustomCategory("");
+      setSavedItemId(null);
     }
     setErrors({});
+    setActiveTab("details");
   }, [item, open]);
 
   const validate = () => {
@@ -117,23 +124,34 @@ const MenuItemDialog = ({ open, onOpenChange, item, onSave }: MenuItemDialogProp
         image_url: null, // Will implement image upload in future
       };
       
+      let savedId;
+      
       if (item) {
         // Update existing item
-        await updateMenuItem(item.id, itemData);
+        const updatedItem = await updateMenuItem(item.id, itemData);
+        savedId = updatedItem.id;
         toast({
           title: "Menu item updated",
           description: "The menu item has been updated successfully.",
         });
       } else {
         // Create new item
-        await createMenuItem(itemData);
+        const newItem = await createMenuItem(itemData);
+        savedId = newItem.id;
         toast({
           title: "Menu item added",
           description: "The new menu item has been added to your menu.",
         });
       }
       
-      onSave();
+      setSavedItemId(savedId);
+      
+      // If we just saved a new item, switch to options tab
+      if (!item) {
+        setActiveTab("options");
+      } else {
+        onSave();
+      }
     } catch (error) {
       console.error("Error saving menu item:", error);
       toast({
@@ -146,87 +164,121 @@ const MenuItemDialog = ({ open, onOpenChange, item, onSave }: MenuItemDialogProp
     }
   };
 
+  const handleOptionsUpdated = () => {
+    console.log("Options updated for item:", savedItemId);
+  };
+
+  const handleFinish = () => {
+    onSave();
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{item ? "Edit Menu Item" : "Add Menu Item"}</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Item Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Margherita Pizza"
-              className={errors.name ? "border-red-500" : ""}
-            />
-            {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="details">Item Details</TabsTrigger>
+            <TabsTrigger value="options" disabled={!savedItemId}>Item Options</TabsTrigger>
+          </TabsList>
           
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe your menu item..."
-              rows={3}
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="price">Price ($)</Label>
-            <Input
-              id="price"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="9.99"
-              type="number"
-              step="0.01"
-              min="0"
-              className={errors.price ? "border-red-500" : ""}
-            />
-            {errors.price && <p className="text-red-500 text-sm">{errors.price}</p>}
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className={errors.category ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            {category === "Other" && (
+          <TabsContent value="details" className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Item Name</Label>
               <Input
-                placeholder="Enter custom category"
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                className="mt-2"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Margherita Pizza"
+                className={errors.name ? "border-red-500" : ""}
+              />
+              {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe your menu item..."
+                rows={3}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="price">Price ($)</Label>
+              <Input
+                id="price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="9.99"
+                type="number"
+                step="0.01"
+                min="0"
+                className={errors.price ? "border-red-500" : ""}
+              />
+              {errors.price && <p className="text-red-500 text-sm">{errors.price}</p>}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className={errors.category ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {category === "Other" && (
+                <Input
+                  placeholder="Enter custom category"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="mt-2"
+                />
+              )}
+              {errors.category && <p className="text-red-500 text-sm">{errors.category}</p>}
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : savedItemId ? "Update & Continue" : "Save & Continue"}
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+          
+          <TabsContent value="options" className="space-y-4">
+            {savedItemId && (
+              <MenuItemOptionsManager 
+                menuItemId={savedItemId} 
+                onOptionsUpdated={handleOptionsUpdated}
               />
             )}
-            {errors.category && <p className="text-red-500 text-sm">{errors.category}</p>}
-          </div>
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : item ? "Update Item" : "Add Item"}
-          </Button>
-        </DialogFooter>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setActiveTab("details")}>
+                Back to Details
+              </Button>
+              <Button onClick={handleFinish}>
+                Finish
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
