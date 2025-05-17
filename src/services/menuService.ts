@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { fetchOptionGroupsWithOptions } from "./menuOptionService";
 
 export const getMenuItemsByRestaurant = async (restaurantId: string) => {
   try {
@@ -8,6 +9,7 @@ export const getMenuItemsByRestaurant = async (restaurantId: string) => {
       return [];
     }
 
+    // Fetch basic menu items first
     const { data, error } = await supabase
       .from('menu_items')
       .select('*')
@@ -16,6 +18,25 @@ export const getMenuItemsByRestaurant = async (restaurantId: string) => {
     if (error) {
       console.error('Error fetching menu items:', error);
       throw error;
+    }
+
+    // For each menu item, fetch its option groups and options
+    if (data && data.length > 0) {
+      const menuItemsWithOptions = await Promise.all(
+        data.map(async (item) => {
+          try {
+            const optionGroups = await fetchOptionGroupsWithOptions(item.id);
+            return {
+              ...item,
+              menu_option_groups: optionGroups.length > 0 ? optionGroups : undefined
+            };
+          } catch (err) {
+            console.error(`Error fetching options for menu item ${item.id}:`, err);
+            return item;
+          }
+        })
+      );
+      return menuItemsWithOptions;
     }
 
     return data || [];

@@ -55,6 +55,12 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
   const [selectedOptions, setSelectedOptions] = useState<any[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
+  // Debug log to check if the item has option groups
+  useEffect(() => {
+    console.log("Menu item with options:", item);
+    console.log("Option groups:", item.menu_option_groups);
+  }, [item]);
+  
   // Initialize selected options structure when item changes
   useEffect(() => {
     if (item.menu_option_groups && item.menu_option_groups.length > 0) {
@@ -154,6 +160,26 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
     onAddToCart(item, quantity, selectedOptions);
   };
   
+  const increaseQuantity = () => setQuantity(prev => prev + 1);
+  const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
+  
+  // Calculate total price including selected options
+  const calculateTotalPrice = () => {
+    let totalPrice = item.price;
+    
+    if (selectedOptions.length > 0) {
+      selectedOptions.forEach(group => {
+        if (group.selections.length > 0) {
+          group.selections.forEach(selection => {
+            totalPrice += selection.priceAdjustment;
+          });
+        }
+      });
+    }
+    
+    return totalPrice;
+  };
+  
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md max-h-[90vh]">
@@ -183,7 +209,7 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
           )}
           
           {/* Options Groups */}
-          {item.menu_option_groups && item.menu_option_groups.length > 0 && (
+          {item.menu_option_groups && item.menu_option_groups.length > 0 ? (
             <div className="space-y-6 my-4">
               {item.menu_option_groups.map((group, groupIndex) => (
                 <div key={group.id} className="space-y-2">
@@ -257,6 +283,8 @@ const MenuItemDetails: React.FC<MenuItemDetailsProps> = ({
                 </div>
               ))}
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No customization options available for this item.</p>
           )}
         </ScrollArea>
         
