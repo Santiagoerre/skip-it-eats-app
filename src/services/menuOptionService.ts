@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for menu options
@@ -139,7 +140,7 @@ export const deleteOption = async (id: string): Promise<void> => {
 };
 
 // Fetch option groups for a menu item, including their options
-export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<MenuItemOptionGroup[]> => {
+export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<MenuOptionGroup[]> => {
   try {
     // First, fetch all option groups for the menu item
     const { data: groups, error: groupsError } = await supabase
@@ -180,14 +181,14 @@ export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<
           ...group,
           selection_type: group.selection_type as 'single' | 'multiple',
           options: options || []
-        } as MenuItemOptionGroup;
+        } as MenuOptionGroup;
       } catch (err) {
         console.error(`Error processing option group ${group.id}:`, err);
         return {
           ...group,
           selection_type: group.selection_type as 'single' | 'multiple',
           options: []
-        } as MenuItemOptionGroup;
+        } as MenuOptionGroup;
       }
     }));
     
