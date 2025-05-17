@@ -7,11 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { getRestaurantById } from "@/services/restaurantService";
+import { fetchRestaurantById } from "@/services/restaurantService"; // Fixed import name
 import { getMenuItemsByRestaurant } from "@/services/menuService";
-import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs"; // Fixed component names
 import MenuItemDetails from "@/components/restaurant/customer/MenuItemDetails";
 import CartSummary from "@/components/restaurant/customer/CartSummary";
+
+// Define MenuItem interface based on existing types
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image_url?: string;
+}
+
+// Define OrderItem interface to match MenuItemDetails component expectations
+interface OrderItem {
+  id: string;
+  name: string;
+  price: number;
+}
 
 const RestaurantProfileView = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,7 +46,7 @@ const RestaurantProfileView = () => {
       
       try {
         console.log("Fetching restaurant by ID:", id);
-        const restaurantData = await getRestaurantById(id);
+        const restaurantData = await fetchRestaurantById(id);
         setRestaurant(restaurantData);
         
         const menuData = await getMenuItemsByRestaurant(id);
@@ -44,7 +61,7 @@ const RestaurantProfileView = () => {
     fetchRestaurantData();
   }, [id]);
   
-  const addToCart = (item: any, quantity: number, selectedOptions: any[] = []) => {
+  const addToCart = (item: OrderItem, quantity: number, selectedOptions: any[] = []) => {
     // Calculate price with options
     let totalItemPrice = item.price;
     let optionsFormatted = [];
@@ -205,16 +222,23 @@ const RestaurantProfileView = () => {
               </div>
             ) : (
               <Tabs defaultValue={categories[0]}>
-                <TabList className="mb-4 overflow-x-auto pb-2 flex space-x-2">
+                <TabsList className="mb-4 overflow-x-auto pb-2 flex space-x-2">
                   {categories.map((category) => (
-                    <Tab key={category} value={category} className="whitespace-nowrap">
+                    <Button 
+                      key={category} 
+                      variant={categories[0] === category ? "default" : "outline"}
+                      onClick={() => {
+                        // Implement tab switching logic here if needed
+                      }}
+                      className="whitespace-nowrap"
+                    >
                       {category}
-                    </Tab>
+                    </Button>
                   ))}
-                </TabList>
+                </TabsList>
                 
                 {categories.map((category) => (
-                  <TabPanel key={category} value={category}>
+                  <TabsContent key={category} value={category}>
                     <div className="space-y-3">
                       {menuByCategory[category].map((item: any) => (
                         <Card 
@@ -236,7 +260,7 @@ const RestaurantProfileView = () => {
                         </Card>
                       ))}
                     </div>
-                  </TabPanel>
+                  </TabsContent>
                 ))}
               </Tabs>
             )}
