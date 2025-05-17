@@ -2,7 +2,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { OrderStatus } from "@/components/restaurant/orders/types";
 import { Json } from "@/integrations/supabase/types";
-import { useToast } from "@/components/ui/use-toast";
 
 export interface OrderItem {
   name: string;
@@ -25,12 +24,12 @@ export interface Order {
   restaurant_id: string;
   customer_name: string;
   items: OrderItem[];
-  items_with_options?: OrderItem[];
+  items_with_options?: OrderItem[] | null;
   total: number;
   status: OrderStatus;
   created_at: string;
   updated_at: string;
-  special_instructions?: string;
+  special_instructions?: string | null;
 }
 
 // Submit a new order
@@ -84,7 +83,7 @@ export const submitOrder = async (
     return {
       ...data,
       items: data.items as unknown as OrderItem[],
-      items_with_options: data.items_with_options as unknown as OrderItem[]
+      items_with_options: data.items_with_options as unknown as OrderItem[] | null
     } as Order;
   } catch (error) {
     console.error('Error submitting order:', error);
@@ -118,7 +117,8 @@ export const fetchCustomerOrders = async (customerId: string): Promise<Order[]> 
     // Transform the items field from Json to OrderItem[]
     return (data || []).map(order => ({
       ...order,
-      items: order.items as unknown as OrderItem[]
+      items: order.items as unknown as OrderItem[],
+      items_with_options: order.items_with_options as unknown as OrderItem[] | null
     })) as Order[];
   } catch (error) {
     console.error('Error fetching customer orders:', error);
@@ -152,7 +152,8 @@ export const fetchRestaurantOrders = async (restaurantId: string): Promise<Order
     // Transform the items field from Json to OrderItem[]
     return (data || []).map(order => ({
       ...order,
-      items: order.items as unknown as OrderItem[]
+      items: order.items as unknown as OrderItem[],
+      items_with_options: order.items_with_options as unknown as OrderItem[] | null
     })) as Order[];
   } catch (error) {
     console.error('Error fetching restaurant orders:', error);
@@ -188,7 +189,8 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
     
     return {
       ...data,
-      items: data.items as unknown as OrderItem[]
+      items: data.items as unknown as OrderItem[],
+      items_with_options: data.items_with_options as unknown as OrderItem[] | null
     } as Order;
   } catch (error) {
     console.error('Error updating order status:', error);
@@ -224,7 +226,8 @@ export const getOrderById = async (orderId: string): Promise<Order | null> => {
     
     return {
       ...data,
-      items: data.items as unknown as OrderItem[]
+      items: data.items as unknown as OrderItem[],
+      items_with_options: data.items_with_options as unknown as OrderItem[] | null
     } as Order;
   } catch (error) {
     console.error('Error fetching order by ID:', error);

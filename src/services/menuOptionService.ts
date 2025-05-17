@@ -49,7 +49,7 @@ export const createOptionGroup = async (optionGroup: NewMenuOptionGroup): Promis
       .single();
     
     if (error) throw error;
-    return data;
+    return data as MenuOptionGroup;
   } catch (error) {
     console.error('Error creating option group:', error);
     throw error;
@@ -67,7 +67,7 @@ export const updateOptionGroup = async (id: string, updates: Partial<MenuOptionG
       .single();
     
     if (error) throw error;
-    return data;
+    return data as MenuOptionGroup;
   } catch (error) {
     console.error('Error updating option group:', error);
     throw error;
@@ -164,8 +164,9 @@ export const fetchOptionGroupsWithOptions = async (menuItemId: string): Promise<
       
       return {
         ...group,
+        selection_type: group.selection_type as 'single' | 'multiple',
         options: options || []
-      };
+      } as MenuOptionGroup;
     }));
     
     return groupsWithOptions;

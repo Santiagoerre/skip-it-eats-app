@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,13 @@ import { ArrowLeft, Star, Minus, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
 import { fetchRestaurantById, fetchMenuItems } from "@/services/restaurantService";
 import { submitOrder } from "@/services/orderService";
 import { useAuth } from "@/contexts/auth";
@@ -22,6 +28,9 @@ interface MenuItem {
   price: number;
   category: string | null;
   image_url: string | null;
+  restaurant_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const RestaurantProfileView = () => {
